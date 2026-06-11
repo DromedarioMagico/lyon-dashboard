@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\rzele\\\\AppData\\\\Local\" -ErrorAction SilentlyContinue | Where-Object {$_.Name -match \"Python\"} | Select-Object FullName)",
+      "PowerShell(Get-Command streamlit -ErrorAction SilentlyContinue)",
+      "PowerShell(& \"c:\\\\Users\\\\rzele\\\\OneDrive\\\\Desktop\\\\Projects\\\\CHAMBA\\\\lyon_dashboard\\\\.venv\\\\Scripts\\\\python.exe\" -c \"import streamlit; print\\(streamlit.__version__\\)\" 2>&1)"
+    ]
+  }
+}

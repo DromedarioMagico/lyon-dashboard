@@ -1,0 +1,9 @@
+.venv/
+data/lyon.db
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+*.egg-info/
+dist/
+.streamlit/secrets.toml

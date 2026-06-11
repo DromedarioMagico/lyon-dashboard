@@ -1,0 +1,697 @@
+﻿Tipo,Clave,Cliente,Nombre,Estatus,Su pedido,Fecha de elaboración,Subtotal,Total de comisiones,Número de almacén,Forma de envío del documento,Importe total,Nombre del vendedor
+Pedido,                3826,        18,DELMAN INTERNACIONAL,Remitido,OP.19791 / OC.16407,05/01/2026,"28,564.90",0.00,1,Impreso,"33,135.28",Luis de León
+Pedido,                3829,       312,INFORMACION INTEGRAL 24/7,Remitido,2,05/01/2026,"13,312.00",0.00,1,Impreso,"15,441.92",
+Pedido,                3828,        18,DELMAN INTERNACIONAL,Remitido,OP. 19798 / OC.16414,05/01/2026,"14,277.90",0.00,1,Impreso,"16,562.36",Luis de León
+Pedido,                3827,        18,DELMAN INTERNACIONAL,Remitido,OP. 19797 / OC.16413,05/01/2026,"14,264.90",0.00,1,Impreso,"16,547.28",Luis de León
+Pedido,                3831,        18,DELMAN INTERNACIONAL,Remitido,OP.19779/OC.16386,05/01/2026,"25,081.00",0.00,1,Impreso,"29,093.96",Luis de León
+Pedido,                3824,        18,DELMAN INTERNACIONAL,Remitido,OP.19777 / OC.16406,05/01/2026,"1,519.00",0.00,1,Impreso,"1,762.04",Luis de León
+Pedido,                3830,       268,IGLESIA UNIVERSAL DEL REINO DE DIOS ORACION FUERTE AL ESPIRITU SANTO,Remitido,1,05/01/2026,"60,540.20","3,027.01",1,Impreso,"70,226.63",Elias Mendoza Jimenez
+Pedido,                3825,        18,DELMAN INTERNACIONAL,Remitido,OP.19781 / OC.16408,05/01/2026,"15,604.40",0.00,1,Impreso,"18,101.10",Luis de León
+Pedido,                3832,       312,INFORMACION INTEGRAL 24/7,Remitido,22,06/01/2026,"13,312.00",0.00,1,Impreso,"15,441.92",
+Pedido,                3833,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,1389,06/01/2026,"11,652.50",582.63,1,Impreso,"13,516.90",Oscar Mejia
+Pedido,                3834,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,1376,06/01/2026,"17,286.00",864.30,1,Impreso,"20,051.76",Oscar Mejia
+Pedido,                3835,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,1377,06/01/2026,"15,573.90",778.70,1,Impreso,"18,065.72",Oscar Mejia
+Pedido,                3844,       289,GD COMERCIALIZADORA SURESTE,Remitido,1125,07/01/2026,"34,400.00","1,720.00",1,Impreso,"39,904.00",Fabiola Hernandez Coronel
+Pedido,                3863,       271,GD COMERCIALIZADORA NOROESTE,Remitido,1167,07/01/2026,"87,420.00","4,371.00",1,Impreso,"101,407.20",Fabiola Hernandez Coronel
+Pedido,                3854,       289,GD COMERCIALIZADORA SURESTE,Remitido,1159,07/01/2026,"38,915.00","1,945.75",1,Impreso,"45,141.40",Fabiola Hernandez Coronel
+Pedido,                3864,       289,GD COMERCIALIZADORA SURESTE,Remitido,1168,07/01/2026,"95,880.00","4,794.00",1,Impreso,"111,220.80",Fabiola Hernandez Coronel
+Pedido,                3855,       289,GD COMERCIALIZADORA SURESTE,Remitido,1160,07/01/2026,"64,500.00","3,225.00",1,Impreso,"74,820.00",Fabiola Hernandez Coronel
+Pedido,                3853,       289,GD COMERCIALIZADORA SURESTE,Remitido,1158,07/01/2026,"76,970.00","3,848.50",1,Impreso,"89,285.20",Fabiola Hernandez Coronel
+Pedido,                3843,       289,GD COMERCIALIZADORA SURESTE,Remitido,1124,07/01/2026,"23,300.00","1,165.00",1,Impreso,"27,028.00",Fabiola Hernandez Coronel
+Pedido,                3852,       289,GD COMERCIALIZADORA SURESTE,Remitido,1157,07/01/2026,"20,880.00","1,044.00",1,Impreso,"24,220.80",Fabiola Hernandez Coronel
+Pedido,                3842,       289,GD COMERCIALIZADORA SURESTE,Remitido,1123,07/01/2026,"44,852.50","2,242.63",1,Impreso,"52,028.90",Fabiola Hernandez Coronel
+Pedido,                3861,       289,GD COMERCIALIZADORA SURESTE,Remitido,1166,07/01/2026,"23,520.00","1,176.00",1,Impreso,"27,283.20",Fabiola Hernandez Coronel
+Pedido,                3865,       289,GD COMERCIALIZADORA SURESTE,Remitido,1169,07/01/2026,"51,520.00","2,576.00",1,Impreso,"59,763.20",Fabiola Hernandez Coronel
+Pedido,                3846,       271,GD COMERCIALIZADORA NOROESTE,Remitido,1127,07/01/2026,"49,910.00","2,495.50",1,Impreso,"57,895.60",Fabiola Hernandez Coronel
+Pedido,                3856,       289,GD COMERCIALIZADORA SURESTE,Remitido,1161,07/01/2026,"28,300.00","1,415.00",1,Impreso,"32,828.00",Fabiola Hernandez Coronel
+Pedido,                3866,       289,GD COMERCIALIZADORA SURESTE,Remitido,1200,07/01/2026,"28,800.00","1,440.00",1,Impreso,"33,408.00",Fabiola Hernandez Coronel
+Pedido,                3847,       289,GD COMERCIALIZADORA SURESTE,Remitido,1128,07/01/2026,"54,060.00","2,703.00",1,Impreso,"62,709.60",Fabiola Hernandez Coronel
+Pedido,                3857,       289,GD COMERCIALIZADORA SURESTE,Remitido,1162,07/01/2026,"45,440.00","2,272.00",1,Impreso,"52,710.40",Fabiola Hernandez Coronel
+Pedido,                3838,       289,GD COMERCIALIZADORA SURESTE,Remitido,1119,07/01/2026,"33,900.00","1,695.00",1,Impreso,"39,324.00",Fabiola Hernandez Coronel
+Pedido,                3848,       289,GD COMERCIALIZADORA SURESTE,Remitido,1129,07/01/2026,"34,200.00","1,710.00",1,Impreso,"39,672.00",Fabiola Hernandez Coronel
+Pedido,                3858,       289,GD COMERCIALIZADORA SURESTE,Remitido,1163,07/01/2026,"19,840.00",992.00,1,Impreso,"23,014.40",Fabiola Hernandez Coronel
+Pedido,                3836,        18,DELMAN INTERNACIONAL,Remitido,OP.19805/OC.16417,07/01/2026,"10,304.00",0.00,1,Impreso,"11,952.64",Luis de León
+Pedido,                3867,       312,INFORMACION INTEGRAL 24/7,Remitido,27,07/01/2026,"13,312.00",0.00,1,Ninguno,"15,441.92",
+Pedido,                3885,       289,GD COMERCIALIZADORA SURESTE,Remitido,1254,07/01/2026,"33,900.00","1,695.00",1,Impreso,"39,324.00",Fabiola Hernandez Coronel
+Pedido,                3880,       289,GD COMERCIALIZADORA SURESTE,Remitido,1249,07/01/2026,"26,900.00","1,345.00",1,Ninguno,"31,204.00",Fabiola Hernandez Coronel
+Pedido,                3871,       289,GD COMERCIALIZADORA SURESTE,Remitido,1240,07/01/2026,"85,635.00","4,281.75",1,Ninguno,"99,336.60",Fabiola Hernandez Coronel
+Pedido,                3881,       289,GD COMERCIALIZADORA SURESTE,Remitido,1250,07/01/2026,"29,700.00","1,485.00",1,Ninguno,"34,452.00",Fabiola Hernandez Coronel
+Pedido,                3882,       289,GD COMERCIALIZADORA SURESTE,Remitido,1251,07/01/2026,"60,680.00","3,034.00",1,Ninguno,"70,388.80",Fabiola Hernandez Coronel
+Pedido,                3883,       271,GD COMERCIALIZADORA NOROESTE,Remitido,1252,07/01/2026,"101,170.00","5,058.50",1,Ninguno,"117,357.20",Fabiola Hernandez Coronel
+Pedido,                3884,       289,GD COMERCIALIZADORA SURESTE,Remitido,1253,07/01/2026,"124,640.00","6,232.00",1,Ninguno,"144,582.40",Fabiola Hernandez Coronel
+Pedido,                3876,       289,GD COMERCIALIZADORA SURESTE,Remitido,1245,07/01/2026,"43,710.00","2,185.50",1,Ninguno,"50,703.60",Fabiola Hernandez Coronel
+Pedido,                3851,       289,GD COMERCIALIZADORA SURESTE,Remitido,1156,07/01/2026,"20,880.00","1,044.00",1,Impreso,"24,220.80",Fabiola Hernandez Coronel
+Pedido,                3877,       289,GD COMERCIALIZADORA SURESTE,Remitido,1246,07/01/2026,"148,320.00","7,416.00",1,Ninguno,"172,051.20",Fabiola Hernandez Coronel
+Pedido,                3878,       289,GD COMERCIALIZADORA SURESTE,Remitido,1247,07/01/2026,"26,040.00","1,302.00",1,Ninguno,"30,206.40",Fabiola Hernandez Coronel
+Pedido,                3879,       289,GD COMERCIALIZADORA SURESTE,Remitido,1248,07/01/2026,"23,200.00","1,160.00",1,Ninguno,"26,912.00",Fabiola Hernandez Coronel
+Pedido,                3845,       289,GD COMERCIALIZADORA SURESTE,Remitido,1126,07/01/2026,"95,120.00","4,756.00",1,Impreso,"110,339.20",Fabiola Hernandez Coronel
+Pedido,                3840,       289,GD COMERCIALIZADORA SURESTE,Remitido,1121,07/01/2026,"51,170.00","2,558.50",1,Impreso,"59,357.20",Fabiola Hernandez Coronel
+Pedido,                3850,       289,GD COMERCIALIZADORA SURESTE,Remitido,1155,07/01/2026,"304,410.00","15,220.50",1,Impreso,"353,115.60",Fabiola Hernandez Coronel
+Pedido,                3860,       289,GD COMERCIALIZADORA SURESTE,Remitido,1165,07/01/2026,"23,520.00","1,176.00",1,Impreso,"27,283.20",Fabiola Hernandez Coronel
+Pedido,                3841,       289,GD COMERCIALIZADORA SURESTE,Remitido,1122,07/01/2026,"28,917.50","1,445.88",1,Impreso,"33,544.30",Fabiola Hernandez Coronel
+Pedido,                3839,       289,GD COMERCIALIZADORA SURESTE,Remitido,1120,07/01/2026,"195,562.50","9,778.13",1,Impreso,"226,852.50",Fabiola Hernandez Coronel
+Pedido,                3849,       289,GD COMERCIALIZADORA SURESTE,Remitido,1130,07/01/2026,"40,640.00","2,032.00",1,Impreso,"47,142.40",Fabiola Hernandez Coronel
+Pedido,                3859,       289,GD COMERCIALIZADORA SURESTE,Remitido,1164,07/01/2026,"128,760.00","6,438.00",1,Impreso,"149,361.60",Fabiola Hernandez Coronel
+Pedido,                3870,       289,GD COMERCIALIZADORA SURESTE,Remitido,1239,07/01/2026,"27,120.00","1,356.00",1,Ninguno,"31,459.20",Fabiola Hernandez Coronel
+Pedido,                3872,       289,GD COMERCIALIZADORA SURESTE,Remitido,1241,07/01/2026,"66,880.00","3,344.00",1,Ninguno,"77,580.80",Fabiola Hernandez Coronel
+Pedido,                3873,       289,GD COMERCIALIZADORA SURESTE,Remitido,1242,07/01/2026,"30,700.00","1,535.00",1,Ninguno,"35,612.00",Fabiola Hernandez Coronel
+Pedido,                3874,       289,GD COMERCIALIZADORA SURESTE,Remitido,1243,07/01/2026,"56,240.00","2,812.00",1,Ninguno,"65,238.40",Fabiola Hernandez Coronel
+Pedido,                3875,       289,GD COMERCIALIZADORA SURESTE,Remitido,1244,07/01/2026,"26,100.00","1,305.00",1,Ninguno,"30,276.00",Fabiola Hernandez Coronel
+Pedido,                3837,        18,DELMAN INTERNACIONAL,Remitido,OP.19804/OC.16419,07/01/2026,"5,454.80",0.00,1,Ninguno,"6,327.57",Luis de León
+Pedido,                3868,       289,GD COMERCIALIZADORA SURESTE,Remitido,1237,07/01/2026,"333,905.00","16,695.25",1,Ninguno,"387,329.80",Fabiola Hernandez Coronel
+Pedido,                3869,       289,GD COMERCIALIZADORA SURESTE,Remitido,1238,07/01/2026,"27,120.00","1,356.00",1,Ninguno,"31,459.20",Fabiola Hernandez Coronel
+Pedido,                3862,       289,GD COMERCIALIZADORA SURESTE,Cancelado,1167,07/01/2026,"87,420.00","4,371.00",1,Impreso,"101,407.20",Fabiola Hernandez Coronel
+Pedido,                3888,        18,DELMAN INTERNACIONAL,Remitido,OP.19770/OC.16433,08/01/2026,"12,433.40",0.00,1,Impreso,"14,422.74",Luis de León
+Pedido,                3890,       300,JAVIER HERNANDEZ FLORES,Remitido,,08/01/2026,"93,123.89","4,656.19",1,Impreso,"108,023.71",Oscar Mejia
+Pedido,                3886,       334,RECICLADOS DE CARTON Y PAPEL,Remitido,,08/01/2026,"76,591.99",0.00,1,Impreso,"76,591.99",
+Pedido,                3889,       312,INFORMACION INTEGRAL 24/7,Remitido,28,08/01/2026,"13,312.00",0.00,1,Impreso,"15,441.92",
+Pedido,                3887,       289,GD COMERCIALIZADORA SURESTE,Remitido,1276,08/01/2026,"40,640.00","2,032.00",1,Ninguno,"47,142.40",Fabiola Hernandez Coronel
+Pedido,                3901,       307,CHEDRAUI BRANDS,Cancelado,"1371, 1370, 1369",09/01/2026,"184,663.00",0.00,1,Impreso,"214,209.08",
+Pedido,                3891,        18,DELMAN INTERNACIONAL,Pend.Cancelado,OP.19799/OC.16462,09/01/2026,"28,529.80",0.00,1,Impreso,"33,094.57",Luis de León
+Pedido,                3900,       307,CHEDRAUI BRANDS,Remitido,"1321, 1322, 1342",09/01/2026,"134,247.00",0.00,1,Impreso,"155,726.52",
+Pedido,                3892,        18,DELMAN INTERNACIONAL,Remitido,OP.19793/OC.16463,09/01/2026,"12,230.40",0.00,1,Impreso,"14,187.26",Luis de León
+Pedido,                3893,       311,INFORMA A PUEBLA,Emitido,30,09/01/2026,"5,880.00",0.00,1,Impreso,"6,820.80",
+Pedido,                3894,       311,INFORMA A PUEBLA,Emitido,31,09/01/2026,"5,880.00",0.00,1,Impreso,"6,820.80",
+Pedido,                3895,       312,INFORMACION INTEGRAL 24/7,Remitido,32,09/01/2026,"13,312.00",0.00,1,Impreso,"15,441.92",
+Pedido,                3896,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,1374,09/01/2026,"38,545.00","1,927.25",1,Impreso,"44,712.20",Oscar Mejia
+Pedido,                3897,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,1375,09/01/2026,"23,108.00","1,155.40",1,Impreso,"26,805.28",Oscar Mejia
+Pedido,                3898,       307,CHEDRAUI BRANDS,Remitido,"1301, 1302",09/01/2026,"130,071.00",0.00,1,Impreso,"150,882.36",
+Pedido,                3899,       307,CHEDRAUI BRANDS,Remitido,"1319, 1320, 1339",09/01/2026,"147,095.00",0.00,1,Impreso,"170,630.20",
+Pedido,                3902,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,7,12/01/2026,"180,810.00","9,040.50",1,Impreso,"209,739.60",Fabiola Hernandez Coronel
+Pedido,                3903,       271,GD COMERCIALIZADORA NOROESTE,Remitido,11,12/01/2026,"138,570.00","6,928.50",1,Impreso,"160,741.20",Fabiola Hernandez Coronel
+Pedido,                3904,       289,GD COMERCIALIZADORA SURESTE,Remitido,19,12/01/2026,"106,400.00","5,320.00",1,Impreso,"123,424.00",Fabiola Hernandez Coronel
+Pedido,                3905,        18,DELMAN INTERNACIONAL,Remitido,OP.19809/OC.16464,12/01/2026,"6,676.80",0.00,1,Impreso,"7,745.09",Luis de León
+Pedido,                3906,        18,DELMAN INTERNACIONAL,Remitido,OP.19800/OC.16465,12/01/2026,"28,515.50",0.00,1,Impreso,"33,077.98",Luis de León
+Pedido,                3907,        18,DELMAN INTERNACIONAL,Emitido,OP.19806/OC.16466,12/01/2026,"25,019.40",0.00,1,Impreso,"29,022.50",Luis de León
+Pedido,                3910,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,1380,13/01/2026,"19,033.17",951.66,1,Impreso,"22,078.48",Oscar Mejia
+Pedido,                3911,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,1378,13/01/2026,"44,395.00","2,219.75",1,Impreso,"51,498.20",Oscar Mejia
+Pedido,                3912,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,1381,13/01/2026,"25,934.00","1,296.70",1,Impreso,"30,083.44",Oscar Mejia
+Pedido,                3913,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,1383,13/01/2026,"18,618.00",930.90,1,Impreso,"21,596.88",Oscar Mejia
+Pedido,                3908,       312,INFORMACION INTEGRAL 24/7,Remitido,33,13/01/2026,"13,312.00",0.00,1,Impreso,"15,441.92",
+Pedido,                3909,       312,INFORMACION INTEGRAL 24/7,Remitido,41,13/01/2026,"13,312.00",0.00,1,Impreso,"15,441.92",
+Pedido,                3915,       312,INFORMACION INTEGRAL 24/7,Remitido,42,14/01/2026,"13,312.00",0.00,1,Impreso,"15,441.92",
+Pedido,                3914,       312,INFORMACION INTEGRAL 24/7,Emitido,"1394, 2,22,27,28,16",14/01/2026,"143,104.00",0.00,1,Impreso,"166,000.64",
+Pedido,                3932,        18,DELMAN INTERNACIONAL,Remitido,OP.19821/OC.16484,15/01/2026,"5,547.10",0.00,1,Impreso,"6,434.64",Luis de León
+Pedido,                3926,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,10,15/01/2026,"40,640.00","2,032.00",1,Impreso,"47,142.40",Fabiola Hernandez Coronel
+Pedido,                3930,        18,DELMAN INTERNACIONAL,Remitido,OP.19803/OC.16418,15/01/2026,"5,385.90",0.00,1,Impreso,"6,247.64",Luis de León
+Pedido,                3931,       312,INFORMACION INTEGRAL 24/7,Remitido,44,15/01/2026,"13,312.00",0.00,1,Impreso,"15,441.92",
+Pedido,                3923,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,13,15/01/2026,"60,680.00","3,034.00",1,Impreso,"70,388.80",Fabiola Hernandez Coronel
+Pedido,                3924,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,12,15/01/2026,"29,700.00","1,485.00",1,Impreso,"34,452.00",Fabiola Hernandez Coronel
+Pedido,                3925,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,4,15/01/2026,"51,520.00","2,576.00",1,Impreso,"59,763.20",Fabiola Hernandez Coronel
+Pedido,                3928,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,8,15/01/2026,"70,080.00","3,504.00",1,Impreso,"81,292.80",Fabiola Hernandez Coronel
+Pedido,                3929,       158,EDITORIAL ESFINGE,Remitido,3,15/01/2026,"264,000.00",0.00,1,Impreso,"306,240.00",
+Pedido,                3921,        18,DELMAN INTERNACIONAL,Remitido,OP.19792/OC.16469,15/01/2026,"16,769.20",0.00,1,Ninguno,"19,452.27",Luis de León
+Pedido,                3920,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,16,15/01/2026,"167,900.00","8,395.00",1,Impreso,"194,764.00",Fabiola Hernandez Coronel
+Pedido,                3922,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,14,15/01/2026,"23,200.00","1,160.00",1,Impreso,"26,912.00",Fabiola Hernandez Coronel
+Pedido,                3916,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,5,15/01/2026,"30,800.00","1,540.00",1,Impreso,"35,728.00",Fabiola Hernandez Coronel
+Pedido,                3917,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,6,15/01/2026,"102,480.00","5,124.00",1,Impreso,"118,876.80",Fabiola Hernandez Coronel
+Pedido,                3918,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,9,15/01/2026,"84,000.00","4,200.00",1,Impreso,"97,440.00",Fabiola Hernandez Coronel
+Pedido,                3919,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,15,15/01/2026,"30,750.00","1,537.50",1,Impreso,"35,670.00",Fabiola Hernandez Coronel
+Pedido,                3927,        18,DELMAN INTERNACIONAL,Remitido,OP.19807/OC.16461,15/01/2026,400.00,0.00,1,Ninguno,464.00,Luis de León
+Pedido,                3950,       307,CHEDRAUI BRANDS,Remitido,43,16/01/2026,"9,750.00",0.00,2,Impreso,"11,310.00",
+Pedido,                3935,       307,CHEDRAUI BRANDS,Cancelado,34,16/01/2026,"42,240.00",0.00,1,Impreso,"48,998.40",
+Pedido,                3936,       307,CHEDRAUI BRANDS,Cancelado,35,16/01/2026,"57,921.00",0.00,1,Impreso,"67,188.36",
+Pedido,                3937,       307,CHEDRAUI BRANDS,Cancelado,36,16/01/2026,"34,086.00",0.00,1,Impreso,"39,539.76",
+Pedido,                3942,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,26,16/01/2026,"105,750.00","5,287.50",1,Impreso,"122,670.00",Fabiola Hernandez Coronel
+Pedido,                3943,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,25,16/01/2026,"105,750.00","5,287.50",1,Impreso,"122,670.00",Fabiola Hernandez Coronel
+Pedido,                3944,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,24,16/01/2026,"831,680.00","41,584.00",1,Impreso,"964,748.80",Fabiola Hernandez Coronel
+Pedido,                3940,       289,GD COMERCIALIZADORA SURESTE,Remitido,20,16/01/2026,"27,000.00","1,350.00",1,Impreso,"31,320.00",Fabiola Hernandez Coronel
+Pedido,                3941,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,21,16/01/2026,"33,900.00","1,695.00",1,Impreso,"39,324.00",Fabiola Hernandez Coronel
+Pedido,                3951,       312,INFORMACION INTEGRAL 24/7,Remitido,52,16/01/2026,"20,280.00",0.00,1,Impreso,"23,524.80",
+Pedido,                3952,       311,INFORMA A PUEBLA,Emitido,51,16/01/2026,"6,750.00",0.00,1,Impreso,"7,830.00",
+Pedido,                3933,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,1382,16/01/2026,"26,898.00","1,344.90",1,Impreso,"31,201.68",Oscar Mejia
+Pedido,                3934,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,1379,16/01/2026,"20,368.00","1,018.40",1,Impreso,"23,626.88",Oscar Mejia
+Pedido,                3945,       158,EDITORIAL ESFINGE,Remitido,40,16/01/2026,"436,000.00",0.00,1,Impreso,"505,760.00",
+Pedido,                3946,       158,EDITORIAL ESFINGE,Remitido,39,16/01/2026,"269,100.00",0.00,1,Impreso,"312,156.00",
+Pedido,                3947,       158,EDITORIAL ESFINGE,Remitido,38,16/01/2026,"292,490.00",0.00,1,Impreso,"339,288.40",
+Pedido,                3938,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,17,16/01/2026,"26,400.00","1,320.00",1,Impreso,"30,624.00",Fabiola Hernandez Coronel
+Pedido,                3948,       158,EDITORIAL ESFINGE,Remitido,37,16/01/2026,"204,000.00",0.00,1,Impreso,"236,640.00",
+Pedido,                3939,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,18,16/01/2026,"31,200.00","1,560.00",1,Impreso,"36,192.00",Fabiola Hernandez Coronel
+Pedido,                3949,       311,INFORMA A PUEBLA,Emitido,"1399,30,31",16/01/2026,"2,610.00",0.00,1,Impreso,"3,027.60",
+Pedido,                3953,       312,INFORMACION INTEGRAL 24/7,Remitido,54,19/01/2026,"20,280.00",0.00,1,Impreso,"23,524.80",
+Pedido,                3954,       290,REGISTRO EXACTO,Remitido,53,19/01/2026,"26,620.00","1,331.00",1,Impreso,"30,879.20",Oscar Mejia
+Pedido,                3955,       158,EDITORIAL ESFINGE,Remitido,55,20/01/2026,"6,000.00",0.00,1,Impreso,"6,960.00",
+Pedido,                3956,MOSTR,MOSTRADOR.,Remitido,,20/01/2026,"212,240.12",0.00,1,Impreso,"246,198.54",
+Pedido,                3957,       312,INFORMACION INTEGRAL 24/7,Remitido,56,20/01/2026,"20,280.00",0.00,1,Impreso,"23,524.80",
+Pedido,                3958,       312,INFORMACION INTEGRAL 24/7,Remitido,57,21/01/2026,"20,280.00",0.00,1,Impreso,"23,524.80",
+Pedido,                3960,        18,DELMAN INTERNACIONAL,Remitido,OP.19796/OC.16501,22/01/2026,"8,551.20",0.00,1,Impreso,"9,919.39",Luis de León
+Pedido,                3961,        18,DELMAN INTERNACIONAL,Remitido,OP.19822/OC.16502,22/01/2026,"5,014.80",0.00,1,Impreso,"5,817.17",Luis de León
+Pedido,                3959,        18,DELMAN INTERNACIONAL,Remitido,OP.19794/OC.16497,22/01/2026,"19,076.40",0.00,1,Impreso,"22,128.62",Luis de León
+Pedido,                3962,        18,DELMAN INTERNACIONAL,Remitido,OP.19810/OC.16521,22/01/2026,"36,624.00",0.00,1,Ninguno,"42,483.84",Luis de León
+Pedido,                3963,       312,INFORMACION INTEGRAL 24/7,Remitido,59,22/01/2026,"20,280.00",0.00,1,Impreso,"23,524.80",
+Pedido,                3964,       311,INFORMA A PUEBLA,Cancelado,60,23/01/2026,"6,750.00",0.00,1,Impreso,"7,830.00",
+Pedido,                3965,       312,INFORMACION INTEGRAL 24/7,Remitido,61,23/01/2026,"20,280.00",0.00,1,Impreso,"23,524.80",
+Pedido,                3966,       312,INFORMACION INTEGRAL 24/7,Remitido,63,26/01/2026,"20,280.00",0.00,2,Impreso,"23,524.80",
+Pedido,                3967,        18,DELMAN INTERNACIONAL,Remitido,OP.19795/OC.16537,27/01/2026,"15,013.60",0.00,3,Impreso,"17,415.78",Luis de León
+Pedido,                3968,       312,INFORMACION INTEGRAL 24/7,Remitido,65,27/01/2026,"20,280.00",0.00,2,Impreso,"23,524.80",
+Pedido,                3969,        18,DELMAN INTERNACIONAL,Remitido,OP.19817/OC.16536,27/01/2026,"42,012.60",0.00,3,Impreso,"48,734.62",Luis de León
+Pedido,                3980,        18,DELMAN INTERNACIONAL,Remitido,OP.19827/OC.16575,28/01/2026,568.00,0.00,3,Impreso,658.88,Luis de León
+Pedido,                3974,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,46,28/01/2026,"22,011.75","1,100.59",2,Impreso,"25,533.63",Oscar Mejia
+Pedido,                3975,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,47,28/01/2026,"20,956.90","1,047.85",2,Impreso,"24,310.00",Oscar Mejia
+Pedido,                3976,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,48,28/01/2026,"22,490.90","1,124.55",2,Impreso,"26,089.44",Oscar Mejia
+Pedido,                3977,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,49,28/01/2026,"19,394.50",969.73,2,Impreso,"22,497.62",Oscar Mejia
+Pedido,                3978,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,50,28/01/2026,"8,210.50",410.53,2,Impreso,"9,524.18",Oscar Mejia
+Pedido,                3979,       312,INFORMACION INTEGRAL 24/7,Remitido,79,28/01/2026,"20,280.00",0.00,2,Impreso,"23,524.80",
+Pedido,                3971,       267,EDITORIAL ESPACIOS DINAMICOS,Remitido,62,28/01/2026,"78,540.00","3,927.00",2,Impreso,"91,106.40",Elias Mendoza Jimenez
+Pedido,                3972,       267,EDITORIAL ESPACIOS DINAMICOS,Remitido,64,28/01/2026,"108,290.00","5,414.50",2,Impreso,"125,616.40",Elias Mendoza Jimenez
+Pedido,                3973,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,45,28/01/2026,"11,814.90",590.75,2,Impreso,"13,705.28",Oscar Mejia
+Pedido,                3970,        18,DELMAN INTERNACIONAL,Remitido,OP.19825/OC.16540,28/01/2026,400.00,0.00,3,Ninguno,464.00,Luis de León
+Pedido,                3981,        18,DELMAN INTERNACIONAL,Remitido,OP.19826/OC.16577,29/01/2026,"3,418.80",0.00,3,Impreso,"3,965.81",Luis de León
+Pedido,                3982,       312,INFORMACION INTEGRAL 24/7,Remitido,82,29/01/2026,"20,280.00",0.00,2,Impreso,"23,524.80",
+Pedido,                3983,       311,INFORMA A PUEBLA,Remitido,60,30/01/2026,"9,600.00",0.00,2,Impreso,"11,136.00",
+Pedido,                3984,       311,INFORMA A PUEBLA,Remitido,84,30/01/2026,"9,600.00",0.00,2,Impreso,"11,136.00",
+Pedido,                3985,       312,INFORMACION INTEGRAL 24/7,Remitido,85,30/01/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                3987,       158,EDITORIAL ESFINGE,Remitido,83,03/02/2026,"128,100.00",0.00,2,Impreso,"148,596.00",
+Pedido,                3988,        18,DELMAN INTERNACIONAL,Remitido,OP.19814/OC.16579,03/02/2026,"11,487.00",0.00,3,Impreso,"13,324.92",Luis de León
+Pedido,                3986,       312,INFORMACION INTEGRAL 24/7,Remitido,98,03/02/2026,"20,475.00",0.00,2,Ninguno,"23,751.00",
+Pedido,                3993,       307,CHEDRAUI BRANDS,Cancelado,66,04/02/2026,"39,600.00",0.00,2,Impreso,"45,936.00",
+Pedido,                3994,       307,CHEDRAUI BRANDS,Cancelado,67,04/02/2026,"53,431.00",0.00,2,Impreso,"61,979.96",
+Pedido,                3995,       307,CHEDRAUI BRANDS,Cancelado,68,04/02/2026,"41,268.00",0.00,2,Impreso,"47,870.88",
+Pedido,                3990,        18,DELMAN INTERNACIONAL,Remitido,OP.19829/OC.16583,04/02/2026,"2,023.20",0.00,3,Impreso,"2,346.91",Luis de León
+Pedido,                3991,        18,DELMAN INTERNACIONAL,Remitido,OP.19831/OC.16582,04/02/2026,"1,640.60",0.00,3,Impreso,"1,903.10",Luis de León
+Pedido,                3992,       312,INFORMACION INTEGRAL 24/7,Remitido,99,04/02/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                3989,        18,DELMAN INTERNACIONAL,Remitido,OP.19828/OC.16581,04/02/2026,"19,472.60",0.00,3,Impreso,"22,588.22",Luis de León
+Pedido,                3996,        18,DELMAN INTERNACIONAL,Remitido,OP.19832/OC.16584,05/02/2026,12.00,0.00,3,Impreso,13.92,Luis de León
+Pedido,                3997,       312,INFORMACION INTEGRAL 24/7,Remitido,100,05/02/2026,"36,015.00",0.00,2,Impreso,"41,777.40",
+Pedido,                4000,       335,RECICLADOS TULA,Emitido,,06/02/2026,"6,310.39",0.00,2,Impreso,"7,320.05",
+Pedido,                3998,       311,INFORMA A PUEBLA,Remitido,102,06/02/2026,"9,600.00",0.00,2,Impreso,"11,136.00",
+Pedido,                3999,       312,INFORMACION INTEGRAL 24/7,Remitido,103,06/02/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4001,        18,DELMAN INTERNACIONAL,Remitido,OP-19823/OC.16622,09/02/2026,"1,254.40",0.00,3,Impreso,"1,455.10",Luis de León
+Pedido,                4002,        18,DELMAN INTERNACIONAL,Remitido,OC.19824/OC.16538,09/02/2026,"22,093.50",0.00,3,Impreso,"25,628.46",Luis de León
+Pedido,                4003,        18,DELMAN INTERNACIONAL,Remitido,OP.19830/OC.16624,09/02/2026,"34,035.40",0.00,3,Impreso,"39,481.06",Luis de León
+Pedido,                4005,        18,DELMAN INTERNACIONAL,Remitido,OP.19839/OC.16634,09/02/2026,264.00,0.00,3,Impreso,306.24,Luis de León
+Pedido,                4006,       312,INFORMACION INTEGRAL 24/7,Remitido,119,09/02/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4007,       105,COMISION NACIONAL DE LIBROS DE TEXTO GRATUITOS,Remitido,80,09/02/2026,"8,922,810.00","133,842.15",2,Impreso,"8,922,810.00",Lic.German Menendez
+Pedido,                4008,       105,COMISION NACIONAL DE LIBROS DE TEXTO GRATUITOS,Remitido,81,09/02/2026,"9,443,850.00","141,657.75",2,Impreso,"9,443,850.00",Lic.German Menendez
+Pedido,                4004,        18,DELMAN INTERNACIONAL,Emitido,OP.19833/OC.16625,09/02/2026,"2,834.00",0.00,3,Impreso,"3,287.44",Luis de León
+Pedido,                4010,        18,DELMAN INTERNACIONAL,Remitido,OP.19841/OC.16641,10/02/2026,"6,675.50",0.00,3,Impreso,"7,743.58",Luis de León
+Pedido,                4011,        18,DELMAN INTERNACIONAL,Remitido,OP.19813/OC.16425,10/02/2026,"8,227.80",0.00,3,Impreso,"9,544.25",Luis de León
+Pedido,                4012,       312,INFORMACION INTEGRAL 24/7,Remitido,123,10/02/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4009,        18,DELMAN INTERNACIONAL,Remitido,OP.19818/OC.16639,10/02/2026,"9,910.60",0.00,3,Impreso,"11,496.30",Luis de León
+Pedido,                4020,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,74,11/02/2026,"60,743.57","3,037.18",2,Impreso,"70,462.54",Oscar Mejia
+Pedido,                4021,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,75,11/02/2026,"39,139.66","1,956.98",2,Impreso,"45,402.01",Oscar Mejia
+Pedido,                4022,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,76,11/02/2026,"38,522.70","1,926.14",2,Impreso,"44,686.33",Oscar Mejia
+Pedido,                4023,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,77,11/02/2026,"48,730.80","2,436.54",2,Impreso,"56,527.73",Oscar Mejia
+Pedido,                4024,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,78,11/02/2026,"35,322.90","1,766.15",2,Impreso,"40,974.56",Oscar Mejia
+Pedido,                4019,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,73,11/02/2026,"32,172.42","1,608.62",2,Impreso,"37,320.01",Oscar Mejia
+Pedido,                4013,       307,CHEDRAUI BRANDS,Remitido,"36, 34, 35",11/02/2026,"134,247.00",0.00,2,Impreso,"155,726.52",
+Pedido,                4014,       312,INFORMACION INTEGRAL 24/7,Remitido,124,11/02/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4015,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,69,11/02/2026,"67,210.18","3,360.51",2,Impreso,"77,963.81",Oscar Mejia
+Pedido,                4016,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,70,11/02/2026,"55,561.44","2,778.07",2,Impreso,"64,451.27",Oscar Mejia
+Pedido,                4017,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,71,11/02/2026,"40,208.24","2,010.41",2,Impreso,"46,641.56",Oscar Mejia
+Pedido,                4018,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,72,11/02/2026,"44,764.50","2,238.23",2,Impreso,"51,926.82",Oscar Mejia
+Pedido,                4025,        18,DELMAN INTERNACIONAL,Remitido,OP.19836/OC.16643,12/02/2026,"10,827.60",0.00,3,Impreso,"12,560.02",Luis de León
+Pedido,                4026,       312,INFORMACION INTEGRAL 24/7,Remitido,129,12/02/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4027,        18,DELMAN INTERNACIONAL,Remitido,OP.19835/OC.16623,12/02/2026,"8,971.20",0.00,3,Impreso,"10,406.59",Luis de León
+Pedido,                4030,       311,INFORMA A PUEBLA,Remitido,"1399, 30, 31, 51",13/02/2026,"38,400.00",0.00,2,Impreso,"44,544.00",
+Pedido,                4031,       311,INFORMA A PUEBLA,Remitido,133,13/02/2026,"9,600.00",0.00,2,Impreso,"11,136.00",
+Pedido,                4032,       312,INFORMACION INTEGRAL 24/7,Remitido,"1400, 2,22,27,28,32,",13/02/2026,"69,680.00",0.00,2,Impreso,"80,828.80",
+Pedido,                4028,       307,CHEDRAUI BRANDS,Remitido,"66, 67, 68",13/02/2026,"134,299.00",0.00,2,Impreso,"155,786.84",
+Pedido,                4029,       312,INFORMACION INTEGRAL 24/7,Remitido,130,13/02/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4040,       307,CHEDRAUI BRANDS,Cancelado,121,16/02/2026,"57,921.00",0.00,2,Impreso,"67,188.36",
+Pedido,                4039,       307,CHEDRAUI BRANDS,Cancelado,120,16/02/2026,"42,240.00",0.00,2,Impreso,"48,998.40",
+Pedido,                4041,       307,CHEDRAUI BRANDS,Emitido,122,16/02/2026,"34,086.00",0.00,2,Impreso,"39,539.76",
+Pedido,                4033,       312,INFORMACION INTEGRAL 24/7,Remitido,134,16/02/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4034,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,104,16/02/2026,"535,230.00","26,761.50",2,Impreso,"620,866.80",Fabiola Hernandez Coronel
+Pedido,                4035,       271,GD COMERCIALIZADORA NOROESTE,Remitido,107,16/02/2026,"112,850.00","5,642.50",2,Impreso,"130,906.00",Fabiola Hernandez Coronel
+Pedido,                4036,       289,GD COMERCIALIZADORA SURESTE,Remitido,108,16/02/2026,"123,900.00","6,195.00",2,Impreso,"143,724.00",Fabiola Hernandez Coronel
+Pedido,                4037,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,115,16/02/2026,"130,650.00","6,532.50",2,Impreso,"151,554.00",Fabiola Hernandez Coronel
+Pedido,                4038,       307,CHEDRAUI BRANDS,Remitido,101,16/02/2026,"94,764.00",0.00,2,Impreso,"109,926.24",
+Pedido,                4042,       312,INFORMACION INTEGRAL 24/7,Remitido,135,17/02/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4043,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,117,17/02/2026,"109,080.00","5,454.00",2,Impreso,"126,532.80",Fabiola Hernandez Coronel
+Pedido,                4044,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,110,17/02/2026,"90,000.00","4,500.00",2,Impreso,"104,400.00",Fabiola Hernandez Coronel
+Pedido,                4045,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,118,17/02/2026,"37,070.00","1,853.50",2,Impreso,"43,001.20",Fabiola Hernandez Coronel
+Pedido,                4046,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,116,17/02/2026,"55,000.00","2,750.00",2,Impreso,"63,800.00",Fabiola Hernandez Coronel
+Pedido,                4047,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,114,17/02/2026,"32,700.00","1,635.00",2,Impreso,"37,932.00",Fabiola Hernandez Coronel
+Pedido,                4048,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,113,17/02/2026,"32,700.00","1,635.00",2,Impreso,"37,932.00",Fabiola Hernandez Coronel
+Pedido,                4049,        18,DELMAN INTERNACIONAL,Remitido,OP.19799/OC16462,17/02/2026,"28,529.80",0.00,3,Impreso,"33,094.57",Luis de León
+Pedido,                4050,       312,INFORMACION INTEGRAL 24/7,Remitido,137,18/02/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4051,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,106,19/02/2026,"29,640.00","1,482.00",2,Impreso,"34,382.40",Fabiola Hernandez Coronel
+Pedido,                4052,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,105,19/02/2026,"95,040.00","4,752.00",2,Impreso,"110,246.40",Fabiola Hernandez Coronel
+Pedido,                4053,       289,GD COMERCIALIZADORA SURESTE,Remitido,109,19/02/2026,"43,080.00","2,154.00",2,Impreso,"49,972.80",Fabiola Hernandez Coronel
+Pedido,                4054,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,111,19/02/2026,"27,400.00","1,370.00",2,Impreso,"31,784.00",Fabiola Hernandez Coronel
+Pedido,                4058,       158,EDITORIAL ESFINGE,Remitido,131,19/02/2026,"78,148.00",0.00,2,Impreso,"90,651.68",
+Pedido,                4055,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,112,19/02/2026,"33,900.00","1,695.00",2,Ninguno,"39,324.00",Fabiola Hernandez Coronel
+Pedido,                4056,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,132,19/02/2026,"489,600.00","24,480.00",2,Ninguno,"567,936.00",Fabiola Hernandez Coronel
+Pedido,                4057,       312,INFORMACION INTEGRAL 24/7,Remitido,139,19/02/2026,"30,555.00",0.00,2,Ninguno,"35,443.80",
+Pedido,                4060,       311,INFORMA A PUEBLA,Remitido,141,20/02/2026,"9,600.00",0.00,2,Impreso,"11,136.00",
+Pedido,                4061,       312,INFORMACION INTEGRAL 24/7,Remitido,142,20/02/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4059,       158,EDITORIAL ESFINGE,Remitido,140,20/02/2026,"6,000.00",0.00,2,Impreso,"6,960.00",
+Pedido,                4071,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,91,23/02/2026,"10,054.80",502.74,2,Impreso,"11,663.57",Oscar Mejia
+Pedido,                4072,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,90,23/02/2026,"13,434.50",671.73,2,Impreso,"15,584.02",Oscar Mejia
+Pedido,                4073,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,89,23/02/2026,"39,240.90","1,962.05",2,Impreso,"45,519.44",Oscar Mejia
+Pedido,                4074,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,88,23/02/2026,"10,252.50",512.63,2,Impreso,"11,892.90",Oscar Mejia
+Pedido,                4075,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,87,23/02/2026,"19,649.00",982.45,2,Impreso,"22,792.84",Oscar Mejia
+Pedido,                4076,       312,INFORMACION INTEGRAL 24/7,Remitido,144,23/02/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4070,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,92,23/02/2026,"20,295.75","1,014.79",2,Impreso,"23,543.07",Oscar Mejia
+Pedido,                4062,        18,DELMAN INTERNACIONAL,Remitido,OP.19843/OC.16673,23/02/2026,"16,273.60",0.00,3,Impreso,"18,877.38",Luis de León
+Pedido,                4063,        18,DELMAN INTERNACIONAL,Remitido,OP.19842/OC.16672,23/02/2026,"21,434.00",0.00,3,Impreso,"24,863.44",Luis de León
+Pedido,                4064,        18,DELMAN INTERNACIONAL,Remitido,OP.19780/OC.16675,23/02/2026,"20,659.80",0.00,3,Impreso,"23,965.37",Luis de León
+Pedido,                4065,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,97,23/02/2026,"22,003.00","1,100.15",2,Impreso,"25,523.48",Oscar Mejia
+Pedido,                4066,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,96,23/02/2026,"31,056.00","1,552.80",2,Impreso,"36,024.96",Oscar Mejia
+Pedido,                4067,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,95,23/02/2026,"30,638.00","1,531.90",2,Impreso,"35,540.08",Oscar Mejia
+Pedido,                4068,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,94,23/02/2026,"19,649.00",982.45,2,Impreso,"22,792.84",Oscar Mejia
+Pedido,                4069,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,93,23/02/2026,"14,259.00",712.95,2,Impreso,"16,540.44",Oscar Mejia
+Pedido,                4077,        18,DELMAN INTERNACIONAL,Remitido,OP.19801/OC.16674,23/02/2026,"28,584.40",0.00,3,Ninguno,"33,157.90",Luis de León
+Pedido,                4082,        18,DELMAN INTERNACIONAL,Remitido,OP.19846/OC.16844,24/02/2026,784.00,0.00,3,Impreso,909.44,Luis de León
+Pedido,                4080,        18,DELMAN INTERNACIONAL,Remitido,OP.19813/OC.16842,24/02/2026,"24,570.00",0.00,3,Impreso,"28,501.20",Luis de León
+Pedido,                4081,        18,DELMAN INTERNACIONAL,Remitido,OP.19845/OC.16465,24/02/2026,"6,221.60",0.00,3,Impreso,"7,217.06",Luis de León
+Pedido,                4083,        18,DELMAN INTERNACIONAL,Remitido,OP.19847/OC.16849,24/02/2026,"9,140.60",0.00,3,Impreso,"10,603.10",Luis de León
+Pedido,                4084,       312,INFORMACION INTEGRAL 24/7,Remitido,145,24/02/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4085,       158,EDITORIAL ESFINGE,Remitido,136,24/02/2026,"61,200.00",0.00,2,Impreso,"70,992.00",
+Pedido,                4086,        18,DELMAN INTERNACIONAL,Remitido,OP.19834/OC.16616,24/02/2026,"1,888.60",0.00,3,Impreso,"2,190.78",Luis de León
+Pedido,                4078,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,138,24/02/2026,"707,230.00","35,361.50",2,Impreso,"820,386.80",Fabiola Hernandez Coronel
+Pedido,                4079,        18,DELMAN INTERNACIONAL,Remitido,OP.19802/OC.16671,24/02/2026,"28,544.10",0.00,3,Impreso,"33,111.16",Luis de León
+Pedido,                4087,       267,EDITORIAL ESPACIOS DINAMICOS,Remitido,143,25/02/2026,"85,374.00","4,268.70",2,Impreso,"99,033.84",Elias Mendoza Jimenez
+Pedido,                4088,       312,INFORMACION INTEGRAL 24/7,Remitido,146,25/02/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4090,       312,INFORMACION INTEGRAL 24/7,Remitido,153,26/02/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4091,       267,EDITORIAL ESPACIOS DINAMICOS,Remitido,147,26/02/2026,"90,988.00","4,549.40",2,Impreso,"105,546.08",Elias Mendoza Jimenez
+Pedido,                4089,       158,EDITORIAL ESFINGE,Remitido,149,26/02/2026,756.67,0.00,2,Impreso,877.75,
+Pedido,                4092,        18,DELMAN INTERNACIONAL,Remitido,OP.19850/OC.16867,27/02/2026,"3,156.53",0.00,3,Impreso,"3,661.57",Luis de León
+Pedido,                4093,        18,DELMAN INTERNACIONAL,Remitido,OP.19851/OC.16866,27/02/2026,"1,471.40",0.00,3,Impreso,"1,706.82",Luis de León
+Pedido,                4094,       311,INFORMA A PUEBLA,Remitido,155,27/02/2026,"9,600.00",0.00,2,Impreso,"11,136.00",
+Pedido,                4096,        18,DELMAN INTERNACIONAL,Remitido,OP.19852/OC.16868,27/02/2026,80.00,0.00,3,Impreso,92.80,Luis de León
+Pedido,                4097,        18,DELMAN INTERNACIONAL,Remitido,OP.19811/OC.16896,27/02/2026,"14,385.00",0.00,3,Impreso,"16,686.60",Luis de León
+Pedido,                4095,       312,INFORMACION INTEGRAL 24/7,Remitido,156,27/02/2026,"20,475.00",0.00,2,Ninguno,"23,751.00",
+Pedido,                4098,        18,DELMAN INTERNACIONAL,Emitido,OP.19837/OC.16670,27/02/2026,"16,844.80",0.00,3,Impreso,"19,539.97",Luis de León
+Pedido,                4100,       312,INFORMACION INTEGRAL 24/7,Remitido,157,02/03/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4101,       307,CHEDRAUI BRANDS,Remitido,"1369, 1370, 1371",02/03/2026,"184,663.00",0.00,2,Impreso,"214,209.08",
+Pedido,                4102,       307,CHEDRAUI BRANDS,Remitido,"120, 121, 122",02/03/2026,"134,247.00",0.00,2,Impreso,"155,726.52",
+Pedido,                4099,        18,DELMAN INTERNACIONAL,Remitido,OP.19853/OC.16897,02/03/2026,"28,493.40",0.00,3,Impreso,"33,052.34",Luis de León
+Pedido,                4110,       105,COMISION NACIONAL DE LIBROS DE TEXTO GRATUITOS,Remitido,151,03/03/2026,"8,043,140.00","120,647.10",2,Impreso,"8,043,140.00",Lic.German Menendez
+Pedido,                4111,       105,COMISION NACIONAL DE LIBROS DE TEXTO GRATUITOS,Remitido,152,03/03/2026,"8,639,520.00","129,592.80",2,Impreso,"8,639,520.00",Lic.German Menendez
+Pedido,                4112,MOSTR,MOSTRADOR.,Remitido,,03/03/2026,"93,087.65",0.00,2,Impreso,"107,981.67",
+Pedido,                4104,        18,DELMAN INTERNACIONAL,Remitido,OP.19812/OC.16902,03/03/2026,"29,465.80",0.00,3,Impreso,"34,180.33",Luis de León
+Pedido,                4105,        18,DELMAN INTERNACIONAL,Remitido,OP.19854/OC.16901,03/03/2026,"28,557.10",0.00,3,Impreso,"33,126.24",Luis de León
+Pedido,                4106,       335,RECICLADOS TULA,Remitido,,03/03/2026,"6,310.41",0.00,2,Impreso,"7,320.08",
+Pedido,                4107,       312,INFORMACION INTEGRAL 24/7,Remitido,160,03/03/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4108,       307,CHEDRAUI BRANDS,Remitido,154,03/03/2026,"187,500.00",0.00,2,Impreso,"217,500.00",
+Pedido,                4109,       105,COMISION NACIONAL DE LIBROS DE TEXTO GRATUITOS,Remitido,,03/03/2026,"7,976,710.00","119,650.65",2,Impreso,"7,976,710.00",Lic.German Menendez
+Pedido,                4103,        18,DELMAN INTERNACIONAL,Remitido,OP.19856/OC.16903,03/03/2026,"1,600.00",0.00,3,Impreso,"1,856.00",Luis de León
+Pedido,                4113,       312,INFORMACION INTEGRAL 24/7,Remitido,164,04/03/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4114,       286,DREAMS ART,Remitido,158,04/03/2026,"11,400.00",0.00,2,Impreso,"13,224.00",
+Pedido,                4115,       312,INFORMACION INTEGRAL 24/7,Remitido,166,05/03/2026,"26,145.00",0.00,2,Impreso,"30,328.20",
+Pedido,                4116,       286,DREAMS ART,Remitido,165,05/03/2026,"23,200.00",0.00,2,Impreso,"26,912.00",
+Pedido,                4123,       312,INFORMACION INTEGRAL 24/7,Remitido,176,06/03/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4120,        18,DELMAN INTERNACIONAL,Remitido,OP.19861/OC.16956,06/03/2026,800.00,0.00,3,Impreso,928.00,Luis de León
+Pedido,                4121,        18,DELMAN INTERNACIONAL,Remitido,174,06/03/2026,"10,414.73",0.00,2,Impreso,"12,081.09",Luis de León
+Pedido,                4122,       311,INFORMA A PUEBLA,Remitido,175,06/03/2026,"9,600.00",0.00,2,Impreso,"11,136.00",
+Pedido,                4117,        18,DELMAN INTERNACIONAL,Remitido,OP.19818/OC.16945,06/03/2026,"24,847.20",0.00,3,Impreso,"28,822.75",Luis de León
+Pedido,                4118,        18,DELMAN INTERNACIONAL,Remitido,OP.19862/OC.16954,06/03/2026,"28,568.80",0.00,3,Impreso,"33,139.81",Luis de León
+Pedido,                4119,        18,DELMAN INTERNACIONAL,Remitido,OP.19865/OC.16955,06/03/2026,"35,263.20",0.00,3,Impreso,"40,905.31",Luis de León
+Pedido,                4124,        18,DELMAN INTERNACIONAL,Remitido,OP.19857/OC.16946,09/03/2026,"4,298.40",0.00,3,Impreso,"4,986.14",Luis de León
+Pedido,                4125,        18,DELMAN INTERNACIONAL,Remitido,OP.19860/OC.16948,09/03/2026,384.00,0.00,3,Impreso,445.44,Luis de León
+Pedido,                4127,       155,EDICIONES CULTURALES PAIDOS,Remitido,159,09/03/2026,"27,538.30","1,376.92",2,Impreso,"31,944.43",Luis Estrada Flores
+Pedido,                4126,       312,INFORMACION INTEGRAL 24/7,Remitido,178,09/03/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4130,        18,DELMAN INTERNACIONAL,Remitido,OP.19865/OC.16959,10/03/2026,"2,823.80",0.00,3,Impreso,"3,275.61",Luis de León
+Pedido,                4128,       158,EDITORIAL ESFINGE,Remitido,177,10/03/2026,"6,000.00",0.00,2,Impreso,"6,960.00",
+Pedido,                4131,        18,DELMAN INTERNACIONAL,Remitido,OP.19855/OC.16947,10/03/2026,"28,510.30",0.00,3,Ninguno,"33,071.95",Luis de León
+Pedido,                4129,       312,INFORMACION INTEGRAL 24/7,Remitido,197,10/03/2026,"20,475.00",0.00,2,Ninguno,"23,751.00",
+Pedido,                4132,       207,IMPREGRAFICA DIGITAL,Remitido,"173, 172",11/03/2026,"9,074.40",0.00,2,Impreso,"10,526.30",
+Pedido,                4133,       312,INFORMACION INTEGRAL 24/7,Remitido,200,11/03/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4135,       307,CHEDRAUI BRANDS,Cancelado,163,12/03/2026,"34,086.00",0.00,2,Impreso,"39,539.76",
+Pedido,                4136,       307,CHEDRAUI BRANDS,Cancelado,162,12/03/2026,"57,921.00",0.00,2,Impreso,"67,188.36",
+Pedido,                4137,       307,CHEDRAUI BRANDS,Cancelado,161,12/03/2026,"42,240.00",0.00,2,Impreso,"48,998.40",
+Pedido,                4134,       312,INFORMACION INTEGRAL 24/7,Remitido,223,12/03/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4138,       311,INFORMA A PUEBLA,Remitido,225,13/03/2026,"9,600.00",0.00,2,Impreso,"11,136.00",
+Pedido,                4139,       312,INFORMACION INTEGRAL 24/7,Remitido,226,13/03/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4140,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,179,17/03/2026,"345,530.00","17,276.50",2,Impreso,"400,814.80",Fabiola Hernandez Coronel
+Pedido,                4141,       271,GD COMERCIALIZADORA NOROESTE,Remitido,193,17/03/2026,"84,329.10","4,216.46",2,Impreso,"97,821.76",Fabiola Hernandez Coronel
+Pedido,                4142,        18,DELMAN INTERNACIONAL,Remitido,OP.19863/OC.16958,17/03/2026,"28,549.30",0.00,3,Impreso,"33,117.19",Luis de León
+Pedido,                4144,       312,INFORMACION INTEGRAL 24/7,Remitido,239,17/03/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4145,       158,EDITORIAL ESFINGE,Remitido,196,17/03/2026,"80,900.00",0.00,2,Impreso,"93,844.00",
+Pedido,                4143,        18,DELMAN INTERNACIONAL,Emitido,OP.19819/OC.16983,17/03/2026,"20,073.20",0.00,3,Impreso,"23,284.91",Luis de León
+Pedido,                4160,        18,DELMAN INTERNACIONAL,Remitido,OP.19867/OC16547,18/03/2026,20.00,0.00,3,Impreso,23.20,Luis de León
+Pedido,                4161,        18,DELMAN INTERNACIONAL,Remitido,OP.19868/OC.16985,18/03/2026,20.00,0.00,3,Impreso,23.20,Luis de León
+Pedido,                4162,        18,DELMAN INTERNACIONAL,Emitido,OP.19875/OC.16991,18/03/2026,"18,967.20",0.00,3,Impreso,"22,001.95",Luis de León
+Pedido,                4150,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,184,18/03/2026,"71,390.00","3,569.50",2,Impreso,"82,812.40",Fabiola Hernandez Coronel
+Pedido,                4151,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,185,18/03/2026,"29,400.00","1,470.00",2,Impreso,"34,104.00",Fabiola Hernandez Coronel
+Pedido,                4152,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,186,18/03/2026,"119,000.00","5,950.00",2,Impreso,"138,040.00",Fabiola Hernandez Coronel
+Pedido,                4153,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,187,18/03/2026,"23,840.00","1,192.00",2,Impreso,"27,654.40",Fabiola Hernandez Coronel
+Pedido,                4154,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,188,18/03/2026,"62,080.00","3,104.00",2,Impreso,"72,012.80",Fabiola Hernandez Coronel
+Pedido,                4155,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,189,18/03/2026,"27,600.00","1,380.00",2,Impreso,"32,016.00",Fabiola Hernandez Coronel
+Pedido,                4146,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,180,18/03/2026,"24,050.00","1,202.50",2,Impreso,"27,898.00",Fabiola Hernandez Coronel
+Pedido,                4156,       289,GD COMERCIALIZADORA SURESTE,Remitido,195,18/03/2026,"86,162.40","4,308.12",2,Impreso,"99,948.38",Fabiola Hernandez Coronel
+Pedido,                4147,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,181,18/03/2026,"24,050.00","1,202.50",2,Impreso,"27,898.00",Fabiola Hernandez Coronel
+Pedido,                4157,       312,INFORMACION INTEGRAL 24/7,Remitido,240,18/03/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4148,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,182,18/03/2026,"95,040.00","4,752.00",2,Impreso,"110,246.40",Fabiola Hernandez Coronel
+Pedido,                4158,        18,DELMAN INTERNACIONAL,Remitido,OP.19866/OC.16986,18/03/2026,"6,880.90",0.00,3,Impreso,"7,981.84",Luis de León
+Pedido,                4149,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,183,18/03/2026,"38,880.00","1,944.00",2,Impreso,"45,100.80",Fabiola Hernandez Coronel
+Pedido,                4159,        18,DELMAN INTERNACIONAL,Remitido,OP.19869/OC.16992,18/03/2026,"4,143.10",0.00,3,Impreso,"4,806.00",Luis de León
+Pedido,                4163,       312,INFORMACION INTEGRAL 24/7,Remitido,242,19/03/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4164,       289,GD COMERCIALIZADORA SURESTE,Remitido,194,19/03/2026,"25,200.00","1,260.00",2,Impreso,"29,232.00",Fabiola Hernandez Coronel
+Pedido,                4165,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,192,19/03/2026,"65,500.00","3,275.00",2,Impreso,"75,980.00",Fabiola Hernandez Coronel
+Pedido,                4166,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,191,19/03/2026,"24,800.00","1,240.00",2,Impreso,"28,768.00",Fabiola Hernandez Coronel
+Pedido,                4167,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,190,19/03/2026,"19,920.00",996.00,2,Impreso,"23,107.20",Fabiola Hernandez Coronel
+Pedido,                4170,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,201,20/03/2026,"21,750.00","1,087.50",2,Impreso,"25,230.00",Fabiola Hernandez Coronel
+Pedido,                4171,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,202,20/03/2026,"40,640.00","2,032.00",2,Impreso,"47,142.40",Fabiola Hernandez Coronel
+Pedido,                4168,       311,INFORMA A PUEBLA,Remitido,243,20/03/2026,"9,600.00",0.00,2,Impreso,"11,136.00",
+Pedido,                4169,       312,INFORMACION INTEGRAL 24/7,Remitido,244,20/03/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4172,       312,INFORMACION INTEGRAL 24/7,Remitido,245,23/03/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4176,       307,CHEDRAUI BRANDS,Cancelado,241,24/03/2026,"94,764.00",0.00,2,Impreso,"109,926.24",
+Pedido,                4190,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,215,24/03/2026,"36,960.00","1,848.00",2,Impreso,"42,873.60",Fabiola Hernandez Coronel
+Pedido,                4182,       289,GD COMERCIALIZADORA SURESTE,Remitido,221,24/03/2026,"129,850.00","6,492.50",2,Impreso,"150,626.00",Fabiola Hernandez Coronel
+Pedido,                4183,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,222,24/03/2026,"40,640.00","2,032.00",2,Impreso,"47,142.40",Fabiola Hernandez Coronel
+Pedido,                4184,       289,GD COMERCIALIZADORA SURESTE,Remitido,219,24/03/2026,"29,360.00","1,468.00",2,Impreso,"34,057.60",Fabiola Hernandez Coronel
+Pedido,                4175,       312,INFORMACION INTEGRAL 24/7,Remitido,250,24/03/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4185,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,205,24/03/2026,"35,700.00","1,785.00",2,Impreso,"41,412.00",Fabiola Hernandez Coronel
+Pedido,                4186,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,218,24/03/2026,"35,300.00","1,765.00",2,Impreso,"40,948.00",Fabiola Hernandez Coronel
+Pedido,                4177,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,168,24/03/2026,"52,875.00","2,643.75",2,Impreso,"61,335.00",Oscar Mejia
+Pedido,                4187,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,217,24/03/2026,"86,760.00","4,338.00",2,Impreso,"100,641.60",Fabiola Hernandez Coronel
+Pedido,                4188,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,216,24/03/2026,"29,920.00","1,496.00",2,Impreso,"34,707.20",Fabiola Hernandez Coronel
+Pedido,                4189,       271,GD COMERCIALIZADORA NOROESTE,Remitido,220,24/03/2026,"128,010.00","6,400.50",2,Impreso,"148,491.60",Fabiola Hernandez Coronel
+Pedido,                4180,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,167,24/03/2026,"31,419.00","1,570.95",2,Impreso,"36,446.04",Oscar Mejia
+Pedido,                4181,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,171,24/03/2026,"47,286.00","2,364.30",2,Impreso,"54,851.76",Oscar Mejia
+Pedido,                4173,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,203,24/03/2026,"33,900.00","1,695.00",2,Impreso,"39,324.00",Fabiola Hernandez Coronel
+Pedido,                4174,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,204,24/03/2026,"586,800.00","29,340.00",2,Impreso,"680,688.00",Fabiola Hernandez Coronel
+Pedido,                4178,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,170,24/03/2026,"32,846.00","1,642.30",2,Impreso,"38,101.36",Oscar Mejia
+Pedido,                4179,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,169,24/03/2026,"40,216.00","2,010.80",2,Impreso,"46,650.56",Oscar Mejia
+Pedido,                4191,       312,INFORMACION INTEGRAL 24/7,Remitido,251,25/03/2026,"20,475.00",0.00,2,Impreso,"23,751.00",
+Pedido,                4200,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,214,26/03/2026,"35,650.00","1,782.50",2,Impreso,"41,354.00",Fabiola Hernandez Coronel
+Pedido,                4201,       307,CHEDRAUI BRANDS,Remitido,"161, 163, 162",26/03/2026,"134,247.00",0.00,2,Impreso,"155,726.52",
+Pedido,                4211,       312,INFORMACION INTEGRAL 24/7,Remitido,259,26/03/2026,"66,570.00",0.00,2,Impreso,"77,221.20",
+Pedido,                4202,        18,DELMAN INTERNACIONAL,Remitido,OP.19879/OC.17025,26/03/2026,"28,165.80",0.00,3,Impreso,"32,672.33",Luis de León
+Pedido,                4192,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,206,26/03/2026,"35,700.00","1,785.00",2,Impreso,"41,412.00",Fabiola Hernandez Coronel
+Pedido,                4203,        18,DELMAN INTERNACIONAL,Remitido,OP.19880/OC.17024,26/03/2026,"28,567.50",0.00,3,Impreso,"33,138.30",Luis de León
+Pedido,                4193,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,207,26/03/2026,"122,200.00","6,110.00",2,Impreso,"141,752.00",Fabiola Hernandez Coronel
+Pedido,                4204,        18,DELMAN INTERNACIONAL,Remitido,OP.19882/OC.17023,26/03/2026,"5,248.60",0.00,3,Impreso,"6,088.38",Luis de León
+Pedido,                4194,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,208,26/03/2026,"55,130.00","2,756.50",2,Impreso,"63,950.80",Fabiola Hernandez Coronel
+Pedido,                4205,        18,DELMAN INTERNACIONAL,Remitido,OP.19884/OC.17026,26/03/2026,"1,090.60",0.00,3,Impreso,"1,265.10",Luis de León
+Pedido,                4195,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,209,26/03/2026,"111,370.00","5,568.50",2,Impreso,"129,189.20",Fabiola Hernandez Coronel
+Pedido,                4196,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,210,26/03/2026,"34,480.00","1,724.00",2,Impreso,"39,996.80",Fabiola Hernandez Coronel
+Pedido,                4207,        18,DELMAN INTERNACIONAL,Remitido,OP.19874/OC.17050,26/03/2026,"23,283.40",0.00,3,Impreso,"27,008.74",Luis de León
+Pedido,                4197,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,211,26/03/2026,"79,900.00","3,995.00",2,Impreso,"92,684.00",Fabiola Hernandez Coronel
+Pedido,                4208,        18,DELMAN INTERNACIONAL,Remitido,OP.19891/OC.17031,26/03/2026,"1,076.60",0.00,3,Impreso,"1,248.86",Luis de León
+Pedido,                4198,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,212,26/03/2026,"28,560.00","1,428.00",2,Impreso,"33,129.60",Fabiola Hernandez Coronel
+Pedido,                4209,        18,DELMAN INTERNACIONAL,Remitido,OP.19881/OC.17029,26/03/2026,"28,616.90",0.00,3,Impreso,"33,195.60",Luis de León
+Pedido,                4199,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,213,26/03/2026,"219,225.00","10,961.25",2,Impreso,"254,301.00",Fabiola Hernandez Coronel
+Pedido,                4210,        18,DELMAN INTERNACIONAL,Emitido,OP.19838/OC.16995,26/03/2026,"26,453.00",0.00,3,Impreso,"30,685.48",Luis de León
+Pedido,                4206,        18,DELMAN INTERNACIONAL,Emitido,OP.19888/OC.17028,26/03/2026,"7,351.40",0.00,3,Impreso,"8,527.62",Luis de León
+Pedido,                4213,       311,INFORMA A PUEBLA,Remitido,260,27/03/2026,"9,600.00",0.00,2,Impreso,"11,136.00",
+Pedido,                4214,       312,INFORMACION INTEGRAL 24/7,Remitido,261,27/03/2026,"17,355.00",0.00,2,Impreso,"20,131.80",
+Pedido,                4215,       267,EDITORIAL ESPACIOS DINAMICOS,Remitido,252,27/03/2026,"66,076.50","3,303.83",2,Impreso,"76,648.74",Elias Mendoza Jimenez
+Pedido,                4212,       267,EDITORIAL ESPACIOS DINAMICOS,Remitido,246,27/03/2026,"58,515.60","2,925.78",2,Impreso,"67,878.10",Elias Mendoza Jimenez
+Pedido,                4221,       312,INFORMACION INTEGRAL 24/7,Remitido,262,30/03/2026,"17,355.00",0.00,2,Impreso,"20,131.80",
+Pedido,                4216,       307,CHEDRAUI BRANDS,Emitido,249,30/03/2026,"57,921.00",0.00,2,Impreso,"67,188.36",
+Pedido,                4217,       307,CHEDRAUI BRANDS,Emitido,248,30/03/2026,"42,240.00",0.00,2,Impreso,"48,998.40",
+Pedido,                4218,       307,CHEDRAUI BRANDS,Emitido,247,30/03/2026,"34,086.00",0.00,2,Impreso,"39,539.76",
+Pedido,                4220,        18,DELMAN INTERNACIONAL,Emitido,OP.19888/OC.17053,30/03/2026,"14,663.60",0.00,3,Impreso,"17,009.78",Luis de León
+Pedido,                4222,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,228,30/03/2026,"22,003.00","1,100.15",2,Impreso,"25,523.48",Oscar Mejia
+Pedido,                4223,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,231,30/03/2026,"26,041.44","1,302.07",2,Impreso,"30,208.07",Oscar Mejia
+Pedido,                4219,        18,DELMAN INTERNACIONAL,Remitido,OP-19874/OC.17052,30/03/2026,"16,597.00",0.00,3,Impreso,"19,252.52",Luis de León
+Pedido,                4224,       312,INFORMACION INTEGRAL 24/7,Remitido,302,31/03/2026,"17,355.00",0.00,2,Impreso,"20,131.80",
+Pedido,                4225,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,229,01/04/2026,"19,022.20",951.11,2,Impreso,"22,065.75",Oscar Mejia
+Pedido,                4226,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,230,01/04/2026,"33,938.10","1,696.91",2,Impreso,"39,368.20",Oscar Mejia
+Pedido,                4227,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,232,01/04/2026,"35,252.00","1,762.60",2,Impreso,"40,892.32",Oscar Mejia
+Pedido,                4230,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,235,01/04/2026,"10,822.60",541.13,2,Impreso,"12,554.22",Oscar Mejia
+Pedido,                4231,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,236,01/04/2026,"19,878.90",993.95,2,Impreso,"23,059.52",Oscar Mejia
+Pedido,                4232,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,237,01/04/2026,"21,542.25","1,077.11",2,Impreso,"24,989.01",Oscar Mejia
+Pedido,                4233,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,238,01/04/2026,"22,886.00","1,144.30",2,Impreso,"26,547.76",Oscar Mejia
+Pedido,                4234,       312,INFORMACION INTEGRAL 24/7,Remitido,303,01/04/2026,"1,108.00",0.00,2,Impreso,"1,285.28",
+Pedido,                4235,       311,INFORMA A PUEBLA,Remitido,305,01/04/2026,"9,600.00",0.00,2,Impreso,"11,136.00",
+Pedido,                4236,       312,INFORMACION INTEGRAL 24/7,Remitido,306,01/04/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4228,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,233,01/04/2026,"20,842.90","1,042.15",2,Impreso,"24,177.76",Oscar Mejia
+Pedido,                4229,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,234,01/04/2026,"18,344.90",917.25,2,Impreso,"21,280.08",Oscar Mejia
+Pedido,                4237,        18,DELMAN INTERNACIONAL,Emitido,OP.19880/OC.17024,02/04/2026,"28,567.50",0.00,3,Impreso,"33,138.30",Luis de León
+Pedido,                4238,       312,INFORMACION INTEGRAL 24/7,Remitido,312,06/04/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4240,       312,INFORMACION INTEGRAL 24/7,Remitido,315,07/04/2026,"20,085.00",0.00,2,Impreso,"23,298.60",
+Pedido,                4241,       308,UNION EDITORIALISTA,Remitido,314,07/04/2026,"382,075.30","19,103.77",2,Impreso,"443,207.35",Oscar Mejia
+Pedido,                4239,       163,IMPRESORES EN OFFSET Y SERIGRAFIA,Remitido,313,07/04/2026,"270,000.00",0.00,2,Impreso,"313,200.00",
+Pedido,                4242,       292,FERNANDO ARTURO RAMOS GUILLEN,Remitido,227,08/04/2026,"84,200.00",0.00,2,Impreso,"97,672.00",
+Pedido,                4243,       312,INFORMACION INTEGRAL 24/7,Remitido,316,08/04/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4244,       307,CHEDRAUI BRANDS,Remitido,"247, 248, 249",08/04/2026,"134,247.00",0.00,2,Impreso,"155,726.52",
+Pedido,                4250,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,255,09/04/2026,"17,352.50",867.63,2,Impreso,"20,128.90",Oscar Mejia
+Pedido,                4251,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,254,09/04/2026,"10,530.00",526.50,2,Impreso,"12,214.80",Oscar Mejia
+Pedido,                4245,       312,INFORMACION INTEGRAL 24/7,Remitido,317,09/04/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4246,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,253,09/04/2026,"27,188.00","1,359.40",2,Impreso,"31,538.08",Oscar Mejia
+Pedido,                4247,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,258,09/04/2026,"28,141.00","1,407.05",2,Impreso,"32,643.56",Oscar Mejia
+Pedido,                4248,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,257,09/04/2026,"22,490.90","1,124.55",2,Impreso,"26,089.44",Oscar Mejia
+Pedido,                4249,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,256,09/04/2026,"14,426.90",721.35,2,Impreso,"16,735.20",Oscar Mejia
+Pedido,                4252,       314,EDITORIAL PANINI MEXICO,Remitido,307,10/04/2026,"555,100.00","27,755.00",2,Impreso,"643,916.00",Fabiola Hernandez Coronel
+Pedido,                4253,       163,IMPRESORES EN OFFSET Y SERIGRAFIA,Remitido,318,10/04/2026,"360,000.00",0.00,2,Impreso,"417,600.00",
+Pedido,                4254,       311,INFORMA A PUEBLA,Remitido,320,10/04/2026,"9,600.00",0.00,2,Impreso,"11,136.00",
+Pedido,                4255,       312,INFORMACION INTEGRAL 24/7,Remitido,321,10/04/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4256,       312,INFORMACION INTEGRAL 24/7,Remitido,336,13/04/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4261,       307,CHEDRAUI BRANDS,Cancelado,308,14/04/2026,"55,088.00",0.00,2,Impreso,"63,902.08",
+Pedido,                4262,       307,CHEDRAUI BRANDS,Cancelado,309,14/04/2026,"74,983.00",0.00,2,Impreso,"86,980.28",
+Pedido,                4263,       307,CHEDRAUI BRANDS,Cancelado,310,14/04/2026,"44,802.00",0.00,2,Impreso,"51,970.32",
+Pedido,                4260,       163,IMPRESORES EN OFFSET Y SERIGRAFIA,Remitido,352,14/04/2026,"186,000.00",0.00,2,Impreso,"215,760.00",
+Pedido,                4257,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,337,14/04/2026,450.00,22.50,2,Impreso,522.00,Oscar Mejia
+Pedido,                4258,       312,INFORMACION INTEGRAL 24/7,Remitido,353,14/04/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4259,       163,IMPRESORES EN OFFSET Y SERIGRAFIA,Remitido,351,14/04/2026,"180,000.00",0.00,2,Impreso,"208,800.00",
+Pedido,                4264,       312,INFORMACION INTEGRAL 24/7,Remitido,355,15/04/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4265,       312,INFORMACION INTEGRAL 24/7,Remitido,357,16/04/2026,"67,204.00",0.00,2,Impreso,"77,956.64",
+Pedido,                4266,        18,DELMAN INTERNACIONAL,Remitido,,17/04/2026,"28,662.40",0.00,3,Impreso,"33,248.38",Luis de León
+Pedido,                4267,       311,INFORMA A PUEBLA,Remitido,377,17/04/2026,"9,600.00",0.00,2,Impreso,"11,136.00",
+Pedido,                4268,       312,INFORMACION INTEGRAL 24/7,Remitido,378,17/04/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4271,       105,COMISION NACIONAL DE LIBROS DE TEXTO GRATUITOS,Remitido,304,18/04/2026,"4,041,320.00",0.00,2,Impreso,"4,041,320.00",Lic.German Menendez
+Pedido,                4269,        18,DELMAN INTERNACIONAL,Remitido,OP.19894/OC17062,18/04/2026,384.00,0.00,3,Impreso,445.44,Luis de León
+Pedido,                4270,        18,DELMAN INTERNACIONAL,Remitido,OP.19905/OC.17083,18/04/2026,"8,765.40",0.00,3,Ninguno,"10,167.86",Luis de León
+Pedido,                4272,       301,ZAFIRO EDITORES,Remitido,380,20/04/2026,"161,972.88",0.00,2,Impreso,"187,888.54",Oscar Mejia
+Pedido,                4273,       312,INFORMACION INTEGRAL 24/7,Remitido,383,20/04/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4274,       163,IMPRESORES EN OFFSET Y SERIGRAFIA,Remitido,379,20/04/2026,"240,000.00",0.00,2,Impreso,"278,400.00",
+Pedido,                4275,        18,DELMAN INTERNACIONAL,Emitido,OP.19885/OC.17074,21/04/2026,"9,088.80",0.00,3,Impreso,"10,543.01",Luis de León
+Pedido,                4280,       312,INFORMACION INTEGRAL 24/7,Remitido,387,21/04/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4290,        18,DELMAN INTERNACIONAL,Remitido,OP.19903/OC.17080,21/04/2026,"3,047.80",0.00,3,Impreso,"3,535.45",Luis de León
+Pedido,                4281,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,319,21/04/2026,"20,958.00",0.00,2,Impreso,"24,311.28",Oscar Mejia
+Pedido,                4282,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,322,21/04/2026,"38,800.00",0.00,2,Impreso,"45,008.00",Oscar Mejia
+Pedido,                4283,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,323,21/04/2026,"21,147.00",0.00,2,Impreso,"24,530.52",Oscar Mejia
+Pedido,                4284,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,329,21/04/2026,"11,702.00",0.00,2,Impreso,"13,574.32",Oscar Mejia
+Pedido,                4285,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,330,21/04/2026,"17,923.10",0.00,2,Impreso,"20,790.80",Oscar Mejia
+Pedido,                4295,        18,DELMAN INTERNACIONAL,Remitido,OP.19899/OC.170799,21/04/2026,"28,570.10",0.00,3,Impreso,"33,141.32",Luis de León
+Pedido,                4276,        18,DELMAN INTERNACIONAL,Remitido,OP.19886/OC.17078,21/04/2026,"7,992.60",0.00,3,Impreso,"9,271.42",Luis de León
+Pedido,                4286,        18,DELMAN INTERNACIONAL,Remitido,OP.19896/OC.17076,21/04/2026,"28,566.20",0.00,3,Impreso,"33,136.79",Luis de León
+Pedido,                4277,        18,DELMAN INTERNACIONAL,Remitido,OP.19895/OC.17072,21/04/2026,"13,242.60",0.00,3,Impreso,"15,361.42",Luis de León
+Pedido,                4278,       314,EDITORIAL PANINI MEXICO,Remitido,335,21/04/2026,"25,310.10",0.00,2,Impreso,"29,359.72",Lic.German Menendez
+Pedido,                4298,        18,DELMAN INTERNACIONAL,Remitido,OP.19916/OC.17131,21/04/2026,"1,435.00",0.00,3,Impreso,"1,664.60",Luis de León
+Pedido,                4279,       314,EDITORIAL PANINI MEXICO,Remitido,334,21/04/2026,"25,310.10",0.00,2,Impreso,"29,359.72",Lic.German Menendez
+Pedido,                4289,        18,DELMAN INTERNACIONAL,Remitido,OP.19898/OC.17069,21/04/2026,384.00,0.00,3,Impreso,445.44,Luis de León
+Pedido,                4287,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,331,21/04/2026,"15,568.00",0.00,2,Ninguno,"18,058.88",Oscar Mejia
+Pedido,                4288,        18,DELMAN INTERNACIONAL,Remitido,OP.19897/OC.17075,21/04/2026,"28,571.40",0.00,3,Ninguno,"33,142.82",Luis de León
+Pedido,                4291,        18,DELMAN INTERNACIONAL,Emitido,OP.19910/OC.17107,21/04/2026,"9,418.50",0.00,3,Impreso,"10,925.46",Luis de León
+Pedido,                4293,        18,DELMAN INTERNACIONAL,Emitido,OP.19871/OC.17116,21/04/2026,"10,311.00",0.00,3,Impreso,"11,960.76",Luis de León
+Pedido,                4294,        18,DELMAN INTERNACIONAL,Emitido,OP.19877/OC.17077,21/04/2026,"9,837.80",0.00,3,Impreso,"11,411.85",Luis de León
+Pedido,                4296,        18,DELMAN INTERNACIONAL,Emitido,OP.19900/OC.16654,21/04/2026,"28,645.50",0.00,3,Impreso,"33,228.78",Luis de León
+Pedido,                4297,        18,DELMAN INTERNACIONAL,Emitido,OP.19911/OC.17109,21/04/2026,"10,392.20",0.00,3,Impreso,"12,054.95",Luis de León
+Pedido,                4292,        18,DELMAN INTERNACIONAL,Emitido,OP.19913/OC.17110,21/04/2026,"3,007.20",0.00,3,Ninguno,"3,488.35",Luis de León
+Pedido,                4300,        18,DELMAN INTERNACIONAL,Remitido,OP.19886/OC.17081,22/04/2026,"4,026.40",0.00,3,Impreso,"4,670.62",Luis de León
+Pedido,                4302,        18,DELMAN INTERNACIONAL,Remitido,OP.19883/OC.17084,22/04/2026,4.00,0.00,3,Impreso,4.64,Luis de León
+Pedido,                4303,       319,EDITORIAL EPOCA,Remitido,394,22/04/2026,"27,989.69",0.00,2,Impreso,"32,468.04",Oscar Mejia
+Pedido,                4304,       312,INFORMACION INTEGRAL 24/7,Remitido,395,22/04/2026,"20,280.00",0.00,2,Impreso,"23,524.80",
+Pedido,                4299,       301,ZAFIRO EDITORES,Remitido,393,22/04/2026,"27,896.16",0.00,2,Impreso,"32,359.55",Oscar Mejia
+Pedido,                4301,        18,DELMAN INTERNACIONAL,Remitido,OP.19901/oc.17134,22/04/2026,"30,801.40",0.00,3,Ninguno,"35,729.62",Luis de León
+Pedido,                4305,       313,GRUPO ZORRO ABARROTERO,Cancelado,359,23/04/2026,"198,000.00",0.00,2,Impreso,"229,680.00",
+Pedido,                4306,       312,INFORMACION INTEGRAL 24/7,Remitido,397,23/04/2026,"20,280.00",0.00,2,Impreso,"23,524.80",
+Pedido,                4307,       158,EDITORIAL ESFINGE,Remitido,396,23/04/2026,"13,513.50",0.00,2,Impreso,"15,675.66",
+Pedido,                4310,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,326,24/04/2026,"23,508.00",0.00,2,Impreso,"27,269.28",Oscar Mejia
+Pedido,                4312,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,327,24/04/2026,"26,526.15",0.00,2,Impreso,"30,770.33",Oscar Mejia
+Pedido,                4313,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,328,24/04/2026,"21,093.54",0.00,2,Impreso,"24,468.51",Oscar Mejia
+Pedido,                4314,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,332,24/04/2026,"17,086.20",0.00,2,Impreso,"19,819.99",Oscar Mejia
+Pedido,                4315,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,333,24/04/2026,"40,116.40",0.00,2,Impreso,"46,535.02",Oscar Mejia
+Pedido,                4308,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,324,24/04/2026,"32,562.00",0.00,2,Impreso,"37,771.92",Oscar Mejia
+Pedido,                4309,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,325,24/04/2026,"24,857.70",0.00,2,Impreso,"28,834.93",Oscar Mejia
+Pedido,                4316,       311,INFORMA A PUEBLA,Remitido,403,24/04/2026,"9,600.00",0.00,2,Ninguno,"11,136.00",
+Pedido,                4317,       312,INFORMACION INTEGRAL 24/7,Remitido,404,24/04/2026,"20,670.00",0.00,2,Ninguno,"23,977.20",
+Pedido,                4311,       327,INFORMAMOS EN EL SURESTE,Emitido,327,24/04/2026,"22,666.00",0.00,2,Impreso,"26,292.56",
+Pedido,                4323,       307,CHEDRAUI BRANDS,Cancelado,384,27/04/2026,"42,240.00",0.00,2,Impreso,"48,998.40",
+Pedido,                4324,       307,CHEDRAUI BRANDS,Cancelado,385,27/04/2026,"57,921.00",0.00,2,Impreso,"67,188.36",
+Pedido,                4325,       307,CHEDRAUI BRANDS,Cancelado,386,27/04/2026,"34,086.00",0.00,2,Impreso,"39,539.76",
+Pedido,                4321,       267,EDITORIAL ESPACIOS DINAMICOS,Remitido,407,27/04/2026,"77,598.00","3,879.90",2,Impreso,"90,013.68",Elias Mendoza Jimenez
+Pedido,                4322,       312,INFORMACION INTEGRAL 24/7,Remitido,406,27/04/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4319,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,389,27/04/2026,"52,480.00","2,624.00",2,Impreso,"60,876.80",Fabiola Hernandez Coronel
+Pedido,                4320,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,388,27/04/2026,"28,400.00","1,420.00",2,Impreso,"32,944.00",Fabiola Hernandez Coronel
+Pedido,                4326,       191,PROMOCIONALES E IMPRESOS AMERICA,Remitido,311,27/04/2026,"5,520,000.00",0.00,2,Impreso,"6,403,200.00",
+Pedido,                4318,       267,EDITORIAL ESPACIOS DINAMICOS,Remitido,401,27/04/2026,"80,563.42","4,028.17",2,Impreso,"93,453.57",Elias Mendoza Jimenez
+Pedido,                4330,       312,INFORMACION INTEGRAL 24/7,Remitido,408,28/04/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4328,       307,CHEDRAUI BRANDS,Remitido,241,28/04/2026,"94,764.00",0.00,2,Impreso,"109,926.24",
+Pedido,                4329,       307,CHEDRAUI BRANDS,Remitido,"308, 309, 310",28/04/2026,"174,873.00",0.00,2,Impreso,"202,852.68",
+Pedido,                4327,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,360,28/04/2026,"1,169,150.00","58,457.50",2,Ninguno,"1,356,214.00",Fabiola Hernandez Coronel
+Pedido,                4331,       312,INFORMACION INTEGRAL 24/7,Remitido,409,29/04/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4340,        18,DELMAN INTERNACIONAL,Remitido,OP.19925/OC.17167,30/04/2026,132.00,0.00,3,Impreso,153.12,Luis de León
+Pedido,                4350,       336,GD EXPO COLCHONES,Remitido,376,30/04/2026,"64,080.00","3,204.00",2,Impreso,"74,332.80",Fabiola Hernandez Coronel
+Pedido,                4341,        18,DELMAN INTERNACIONAL,Remitido,OP.19926/OC.17150,30/04/2026,"1,093.40",0.00,3,Impreso,"1,268.34",Luis de León
+Pedido,                4351,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,365,30/04/2026,"69,120.00","3,456.00",2,Impreso,"80,179.20",Fabiola Hernandez Coronel
+Pedido,                4332,        18,DELMAN INTERNACIONAL,Remitido,OP.19919/OC.17169,30/04/2026,"1,334.20",0.00,3,Impreso,"1,547.67",Luis de León
+Pedido,                4342,       314,EDITORIAL PANINI MEXICO,Remitido,293,30/04/2026,"56,663.10",0.00,2,Impreso,"65,729.20",Lic.German Menendez
+Pedido,                4352,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,364,30/04/2026,"257,300.00","12,865.00",2,Impreso,"298,468.00",Fabiola Hernandez Coronel
+Pedido,                4343,       314,EDITORIAL PANINI MEXICO,Remitido,292,30/04/2026,"42,497.24",0.00,2,Impreso,"49,296.80",Lic.German Menendez
+Pedido,                4344,       314,EDITORIAL PANINI MEXICO,Remitido,291,30/04/2026,"23,377.20",0.00,2,Impreso,"27,117.55",Lic.German Menendez
+Pedido,                4335,        18,DELMAN INTERNACIONAL,Remitido,OP.19917/OC.17166,30/04/2026,84.00,0.00,3,Impreso,97.44,Luis de León
+Pedido,                4345,       314,EDITORIAL PANINI MEXICO,Remitido,290,30/04/2026,"23,129.26",0.00,2,Impreso,"26,829.94",Lic.German Menendez
+Pedido,                4346,        18,DELMAN INTERNACIONAL,Remitido,OP.19928/OC.17171,30/04/2026,"6,930.30",0.00,3,Impreso,"8,039.15",Luis de León
+Pedido,                4337,        18,DELMAN INTERNACIONAL,Remitido,OP.19919/OC.17163,30/04/2026,"14,586.60",0.00,3,Impreso,"16,920.46",Luis de León
+Pedido,                4347,        18,DELMAN INTERNACIONAL,Remitido,OP.19929/OC.17168,30/04/2026,"4,905.60",0.00,3,Impreso,"5,690.50",Luis de León
+Pedido,                4338,       314,EDITORIAL PANINI MEXICO,Remitido,349,30/04/2026,"53,800.58",0.00,2,Impreso,"62,408.67",Lic.German Menendez
+Pedido,                4348,       336,GD EXPO COLCHONES,Remitido,374,30/04/2026,"281,370.00","14,068.50",2,Impreso,"326,389.20",Fabiola Hernandez Coronel
+Pedido,                4339,        18,DELMAN INTERNACIONAL,Remitido,OP.19921/OC.17148,30/04/2026,"28,548.00",0.00,3,Impreso,"33,115.68",Luis de León
+Pedido,                4349,       336,GD EXPO COLCHONES,Remitido,375,30/04/2026,"273,600.00","13,680.00",2,Impreso,"317,376.00",Fabiola Hernandez Coronel
+Pedido,                4333,        18,DELMAN INTERNACIONAL,Emitido,OP.19907/OC.17162,30/04/2026,"8,149.40",0.00,3,Impreso,"9,453.30",Luis de León
+Pedido,                4334,        18,DELMAN INTERNACIONAL,Emitido,OP.19908/OC.17164,30/04/2026,"3,084.20",0.00,3,Impreso,"3,577.67",Luis de León
+Pedido,                4336,        18,DELMAN INTERNACIONAL,Emitido,OP.17165/OC.16713,30/04/2026,"16,265.20",0.00,3,Impreso,"18,867.63",Luis de León
+Pedido,                4360,       307,CHEDRAUI BRANDS,Cancelado,400,30/04/2026,"34,086.00",0.00,2,Impreso,"39,539.76",
+Pedido,                4358,       307,CHEDRAUI BRANDS,Cancelado,399,30/04/2026,"57,921.00",0.00,2,Impreso,"67,188.36",
+Pedido,                4359,       307,CHEDRAUI BRANDS,Cancelado,398,30/04/2026,"42,240.00",0.00,2,Impreso,"48,998.40",
+Pedido,                4361,       311,INFORMA A PUEBLA,Remitido,423,30/04/2026,"9,600.00",0.00,2,Impreso,"11,136.00",
+Pedido,                4362,       312,INFORMACION INTEGRAL 24/7,Remitido,424,30/04/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4353,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,363,30/04/2026,"309,000.00","15,450.00",2,Impreso,"358,440.00",Fabiola Hernandez Coronel
+Pedido,                4355,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,367,30/04/2026,"116,870.00","5,843.50",2,Impreso,"135,569.20",Fabiola Hernandez Coronel
+Pedido,                4356,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,368,30/04/2026,"412,850.00","20,642.50",2,Impreso,"478,906.00",Fabiola Hernandez Coronel
+Pedido,                4357,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,373,30/04/2026,"58,600.00","2,930.00",2,Impreso,"67,976.00",Fabiola Hernandez Coronel
+Pedido,                4354,        18,DELMAN INTERNACIONAL,Emitido,OP.19930/OC.17172,30/04/2026,"17,010.00",0.00,3,Impreso,"19,731.60",Luis de León
+Pedido,                4363,        18,DELMAN INTERNACIONAL,Remitido,354,04/05/2026,"23,865.60",0.00,2,Impreso,"27,684.10",Luis de León
+Pedido,                4364,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,361,04/05/2026,"64,050.00","3,202.50",2,Impreso,"74,298.00",Fabiola Hernandez Coronel
+Pedido,                4366,       312,INFORMACION INTEGRAL 24/7,Remitido,434,04/05/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4369,        18,DELMAN INTERNACIONAL,Remitido,OP.19927/OC.17149,04/05/2026,"8,552.70",0.00,3,Impreso,"9,921.13",Luis de León
+Pedido,                4365,       191,PROMOCIONALES E IMPRESOS AMERICA,Cancelado,311,04/05/2026,"5,520,000.00",0.00,2,Impreso,"6,403,200.00",
+Pedido,                4367,        18,DELMAN INTERNACIONAL,Emitido,OP.19910/OC.17115,04/05/2026,"7,614.10",0.00,3,Impreso,"8,832.36",Luis de León
+Pedido,                4368,        18,DELMAN INTERNACIONAL,Emitido,OP.19914/OC.17133,04/05/2026,"8,314.60",0.00,3,Impreso,"9,644.94",Luis de León
+Pedido,                4380,       312,INFORMACION INTEGRAL 24/7,Remitido,436,05/05/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4371,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,362,05/05/2026,"64,050.00","3,202.50",2,Impreso,"74,298.00",Fabiola Hernandez Coronel
+Pedido,                4381,       314,EDITORIAL PANINI MEXICO,Remitido,297,05/05/2026,"18,909.22",0.00,2,Impreso,"21,934.70",Lic.German Menendez
+Pedido,                4372,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,366,05/05/2026,"110,490.00","5,524.50",2,Impreso,"128,168.40",Fabiola Hernandez Coronel
+Pedido,                4373,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,369,05/05/2026,"60,000.00","3,000.00",2,Impreso,"69,600.00",Fabiola Hernandez Coronel
+Pedido,                4374,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,370,05/05/2026,"52,600.00","2,630.00",2,Impreso,"61,016.00",Fabiola Hernandez Coronel
+Pedido,                4375,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,371,05/05/2026,"200,720.00","10,036.00",2,Impreso,"232,835.20",Fabiola Hernandez Coronel
+Pedido,                4376,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,372,05/05/2026,"62,880.00","3,144.00",2,Impreso,"72,940.80",Fabiola Hernandez Coronel
+Pedido,                4377,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,391,05/05/2026,"44,000.00","2,200.00",2,Impreso,"51,040.00",Fabiola Hernandez Coronel
+Pedido,                4378,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,392,05/05/2026,"33,900.00","1,695.00",2,Impreso,"39,324.00",Fabiola Hernandez Coronel
+Pedido,                4379,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,390,05/05/2026,"40,640.00","2,032.00",2,Impreso,"47,142.40",Fabiola Hernandez Coronel
+Pedido,                4370,        18,DELMAN INTERNACIONAL,Emitido,OP.19815/OC.17194,05/05/2026,"7,662.20",0.00,3,Impreso,"8,888.15",Luis de León
+Pedido,                4382,       314,EDITORIAL PANINI MEXICO,Remitido,296,06/05/2026,"18,909.22",0.00,2,Impreso,"21,934.70",Lic.German Menendez
+Pedido,                4383,       314,EDITORIAL PANINI MEXICO,Remitido,295,06/05/2026,"18,909.22",0.00,2,Impreso,"21,934.70",Lic.German Menendez
+Pedido,                4384,       314,EDITORIAL PANINI MEXICO,Remitido,294,06/05/2026,"18,909.22",0.00,2,Impreso,"21,934.70",Lic.German Menendez
+Pedido,                4385,       312,INFORMACION INTEGRAL 24/7,Remitido,437,06/05/2026,"25,896.00",0.00,2,Impreso,"30,039.36",
+Pedido,                4386,       312,INFORMACION INTEGRAL 24/7,Remitido,438,07/05/2026,"20,280.00",0.00,2,Impreso,"23,524.80",
+Pedido,                4390,       314,EDITORIAL PANINI MEXICO,Remitido,301,08/05/2026,"18,909.22",0.00,2,Impreso,"21,934.70",Lic.German Menendez
+Pedido,                4391,       314,EDITORIAL PANINI MEXICO,Remitido,381,08/05/2026,"84,228.12",0.00,2,Impreso,"97,704.62",Lic.German Menendez
+Pedido,                4392,       311,INFORMA A PUEBLA,Remitido,461,08/05/2026,"9,600.00",0.00,2,Impreso,"11,136.00",
+Pedido,                4393,       312,INFORMACION INTEGRAL 24/7,Remitido,462,08/05/2026,"20,280.00",0.00,2,Impreso,"23,524.80",
+Pedido,                4387,       191,PROMOCIONALES E IMPRESOS AMERICA,Remitido,435,08/05/2026,"78,362.07",0.00,2,Impreso,"90,900.00",
+Pedido,                4388,       314,EDITORIAL PANINI MEXICO,Remitido,299,08/05/2026,"18,909.22",0.00,2,Impreso,"21,934.70",Lic.German Menendez
+Pedido,                4389,       314,EDITORIAL PANINI MEXICO,Remitido,300,08/05/2026,"6,101.64",0.00,2,Impreso,"7,077.90",Lic.German Menendez
+Pedido,                4394,        18,DELMAN INTERNACIONAL,Remitido,"OP,19920/OC.17136",11/05/2026,"28,464.80",0.00,3,Impreso,"33,019.17",Luis de León
+Pedido,                4395,        18,DELMAN INTERNACIONAL,Remitido,354,11/05/2026,"57,314.85",0.00,2,Impreso,"66,485.23",Luis de León
+Pedido,                4396,        18,DELMAN INTERNACIONAL,Remitido,402,11/05/2026,"35,310.00",0.00,2,Impreso,"40,959.60",Luis de León
+Pedido,                4397,        18,DELMAN INTERNACIONAL,Remitido,356,11/05/2026,"31,167.00",0.00,2,Impreso,"36,153.72",Luis de León
+Pedido,                4398,       312,INFORMACION INTEGRAL 24/7,Remitido,482,11/05/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4404,       307,CHEDRAUI BRANDS,Cancelado,422,12/05/2026,"44,802.00",0.00,2,Impreso,"51,970.32",
+Pedido,                4405,       307,CHEDRAUI BRANDS,Cancelado,421,12/05/2026,"74,983.00",0.00,2,Impreso,"86,980.28",
+Pedido,                4406,       307,CHEDRAUI BRANDS,Cancelado,420,12/05/2026,"55,088.00",0.00,2,Impreso,"63,902.08",
+Pedido,                4400,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,415,12/05/2026,"17,671.32",0.00,2,Impreso,"20,498.73",Oscar Mejia
+Pedido,                4401,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,416,12/05/2026,"17,878.80",0.00,2,Impreso,"20,739.41",Oscar Mejia
+Pedido,                4402,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,417,12/05/2026,"26,040.80",0.00,2,Impreso,"30,207.33",Oscar Mejia
+Pedido,                4403,       312,INFORMACION INTEGRAL 24/7,Remitido,486,12/05/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4407,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,418,12/05/2026,"11,814.90",0.00,2,Impreso,"13,705.28",Oscar Mejia
+Pedido,                4399,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,411,12/05/2026,"19,950.90",0.00,2,Impreso,"23,143.04",Oscar Mejia
+Pedido,                4410,       314,EDITORIAL PANINI MEXICO,Remitido,263,13/05/2026,"30,128.28",0.00,2,Impreso,"34,948.80",Lic.German Menendez
+Pedido,                4411,       314,EDITORIAL PANINI MEXICO,Remitido,265,13/05/2026,"21,727.64",0.00,2,Impreso,"25,204.06",Lic.German Menendez
+Pedido,                4412,       314,EDITORIAL PANINI MEXICO,Remitido,270,13/05/2026,"31,668.88",0.00,2,Impreso,"36,735.90",Lic.German Menendez
+Pedido,                4413,       336,GD EXPO COLCHONES,Remitido,449,13/05/2026,"69,540.00","3,477.00",2,Impreso,"80,666.40",Fabiola Hernandez Coronel
+Pedido,                4414,       336,GD EXPO COLCHONES,Remitido,448,13/05/2026,"32,130.00","1,606.50",2,Impreso,"37,270.80",Fabiola Hernandez Coronel
+Pedido,                4424,       314,EDITORIAL PANINI MEXICO,Remitido,271,13/05/2026,"29,072.42",0.00,2,Impreso,"33,724.01",Lic.German Menendez
+Pedido,                4415,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,447,13/05/2026,"19,700.00",985.00,2,Impreso,"22,852.00",Fabiola Hernandez Coronel
+Pedido,                4425,       314,EDITORIAL PANINI MEXICO,Remitido,343,13/05/2026,"38,577.78",0.00,2,Impreso,"44,750.22",Lic.German Menendez
+Pedido,                4416,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,446,13/05/2026,"20,450.00","1,022.50",2,Impreso,"23,722.00",Fabiola Hernandez Coronel
+Pedido,                4426,       312,INFORMACION INTEGRAL 24/7,Remitido,487,13/05/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4417,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,445,13/05/2026,"32,600.00","1,630.00",2,Impreso,"37,816.00",Fabiola Hernandez Coronel
+Pedido,                4408,       314,EDITORIAL PANINI MEXICO,Remitido,264,13/05/2026,"72,805.32",0.00,2,Impreso,"84,454.17",Lic.German Menendez
+Pedido,                4418,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,444,13/05/2026,"66,885.00","3,344.25",2,Impreso,"77,586.60",Fabiola Hernandez Coronel
+Pedido,                4409,       314,EDITORIAL PANINI MEXICO,Remitido,266,13/05/2026,"31,668.88",0.00,2,Impreso,"36,735.90",Lic.German Menendez
+Pedido,                4419,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,443,13/05/2026,"27,720.00","1,386.00",2,Impreso,"32,155.20",Fabiola Hernandez Coronel
+Pedido,                4420,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,442,13/05/2026,"25,360.00","1,268.00",2,Impreso,"29,417.60",Fabiola Hernandez Coronel
+Pedido,                4421,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,441,13/05/2026,"47,880.00","2,394.00",2,Impreso,"55,540.80",Fabiola Hernandez Coronel
+Pedido,                4422,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,440,13/05/2026,"52,200.00","2,610.00",2,Impreso,"60,552.00",Fabiola Hernandez Coronel
+Pedido,                4423,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,439,13/05/2026,"116,630.00","5,831.50",2,Impreso,"135,290.80",Fabiola Hernandez Coronel
+Pedido,                4427,       307,CHEDRAUI BRANDS,Remitido,"400, 398, 399",14/05/2026,"134,247.00",0.00,2,Impreso,"155,726.52",
+Pedido,                4430,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,414,14/05/2026,"15,960.90",0.00,2,Impreso,"18,514.64",Oscar Mejia
+Pedido,                4431,       307,CHEDRAUI BRANDS,Remitido,"386, 384, 385",14/05/2026,"134,247.00",0.00,2,Impreso,"155,726.52",
+Pedido,                4432,       312,INFORMACION INTEGRAL 24/7,Remitido,490,14/05/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4433,       313,GRUPO ZORRO ABARROTERO,Remitido,359,14/05/2026,"39,600.00",0.00,2,Impreso,"45,936.00",
+Pedido,                4434,       313,GRUPO ZORRO ABARROTERO,Remitido,359,14/05/2026,"39,600.00",0.00,2,Impreso,"45,936.00",
+Pedido,                4435,       313,GRUPO ZORRO ABARROTERO,Remitido,359,14/05/2026,"39,600.00",0.00,2,Impreso,"45,936.00",
+Pedido,                4436,       313,GRUPO ZORRO ABARROTERO,Remitido,359,14/05/2026,"39,600.00",0.00,2,Impreso,"45,936.00",
+Pedido,                4437,       313,GRUPO ZORRO ABARROTERO,Remitido,359,14/05/2026,"39,600.00",0.00,2,Impreso,"45,936.00",
+Pedido,                4428,       336,GD EXPO COLCHONES,Remitido,479,14/05/2026,"221,000.00","11,050.00",2,Impreso,"256,360.00",Fabiola Hernandez Coronel
+Pedido,                4429,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,463,14/05/2026,"1,225,950.00","61,297.50",2,Impreso,"1,422,102.00",Fabiola Hernandez Coronel
+Pedido,                4440,       312,INFORMACION INTEGRAL 24/7,Remitido,499,15/05/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4438,        18,DELMAN INTERNACIONAL,Remitido,496,15/05/2026,"1,145,293.65",0.00,2,Impreso,"1,328,540.63",Luis de León
+Pedido,                4439,       311,INFORMA A PUEBLA,Remitido,498,15/05/2026,"9,600.00",0.00,2,Impreso,"11,136.00",
+Pedido,                4441,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,413,18/05/2026,"31,888.00",0.00,2,Impreso,"36,990.08",Oscar Mejia
+Pedido,                4442,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,412,18/05/2026,"18,076.80",0.00,2,Impreso,"20,969.09",Oscar Mejia
+Pedido,                4443,       312,INFORMACION INTEGRAL 24/7,Remitido,522,18/05/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4444,        18,DELMAN INTERNACIONAL,Emitido,OP.19878/OC.17235,18/05/2026,"13,018.60",0.00,3,Impreso,"15,101.58",Luis de León
+Pedido,                4445,        18,DELMAN INTERNACIONAL,Emitido,OP.19906/OC.17135,18/05/2026,"12,303.20",0.00,3,Impreso,"14,271.71",Luis de León
+Pedido,                4450,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,468,19/05/2026,"69,120.00","3,456.00",2,Impreso,"80,179.20",Fabiola Hernandez Coronel
+Pedido,                4461,       336,GD EXPO COLCHONES,Remitido,480,19/05/2026,"286,440.00","14,322.00",2,Impreso,"332,270.40",Fabiola Hernandez Coronel
+Pedido,                4462,       336,GD EXPO COLCHONES,Remitido,481,19/05/2026,"63,720.00","3,186.00",2,Impreso,"73,915.20",Fabiola Hernandez Coronel
+Pedido,                4463,       307,CHEDRAUI BRANDS,Rem.Parc.,483,19/05/2026,"42,240.00",0.00,2,Impreso,"48,998.40",
+Pedido,                4464,       307,CHEDRAUI BRANDS,Remitido,484,19/05/2026,"57,921.00",0.00,2,Impreso,"67,188.36",
+Pedido,                4465,       307,CHEDRAUI BRANDS,Rem.Parc.,485,19/05/2026,"34,086.00",0.00,2,Impreso,"39,539.76",
+Pedido,                4475,        18,DELMAN INTERNACIONAL,Emitido,OP.19934/OC.17233,19/05/2026,"13,466.60",0.00,3,Impreso,"15,621.26",Luis de León
+Pedido,                4477,       312,INFORMACION INTEGRAL 24/7,Remitido,524,19/05/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4448,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,466,19/05/2026,"294,690.00","14,734.50",2,Impreso,"341,840.40",Fabiola Hernandez Coronel
+Pedido,                4478,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,429,19/05/2026,"19,608.90",0.00,2,Impreso,"22,746.32",Oscar Mejia
+Pedido,                4449,       270,GD COMERCIALIZADORA DEL BAJIO,Remitido,467,19/05/2026,"255,225.00","12,761.25",2,Impreso,"296,061.00",Fabiola Hernandez Coronel
+Pedido,                4479,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,430,19/05/2026,"13,420.90",0.00,2,Impreso,"15,568.24",Oscar Mejia
+Pedido,                4460,       270,GD COMERCIALIZADORA DEL BAJIO,Emitido,478,19/05/2026,"55,700.00","2,785.00",2,Impreso,"64,612.00",Fabiola Hernandez Coronel
+Pedido,                4451,       270,GD COMERCIALIZADORA DEL BAJIO,Emitido,469,19/05/2026,"97,680.00","4,884.00",2,Impreso,"113,308.80",Fabiola Hernandez Coronel
+Pedido,                4452,       270,GD COMERCIALIZADORA DEL BAJIO,Emitido,470,19/05/2026,"36,000.00","1,800.00",2,Impreso,"41,760.00",Fabiola Hernandez Coronel
+Pedido,                4453,       270,GD COMERCIALIZADORA DEL BAJIO,Emitido,471,19/05/2026,"109,080.00","5,454.00",2,Impreso,"126,532.80",Fabiola Hernandez Coronel
+Pedido,                4454,       270,GD COMERCIALIZADORA DEL BAJIO,Emitido,472,19/05/2026,"402,480.00","20,124.00",2,Impreso,"466,876.80",Fabiola Hernandez Coronel
+Pedido,                4455,       270,GD COMERCIALIZADORA DEL BAJIO,Emitido,473,19/05/2026,"62,550.00","3,127.50",2,Impreso,"72,558.00",Fabiola Hernandez Coronel
+Pedido,                4456,       270,GD COMERCIALIZADORA DEL BAJIO,Emitido,474,19/05/2026,"52,600.00","2,630.00",2,Impreso,"61,016.00",Fabiola Hernandez Coronel
+Pedido,                4476,        18,DELMAN INTERNACIONAL,Emitido,OP.19815/OC.17234,19/05/2026,"7,642.60",0.00,3,Impreso,"8,865.42",Luis de León
+Pedido,                4447,       270,GD COMERCIALIZADORA DEL BAJIO,Emitido,465,19/05/2026,"64,050.00","3,202.50",2,Impreso,"74,298.00",Fabiola Hernandez Coronel
+Pedido,                4457,       270,GD COMERCIALIZADORA DEL BAJIO,Emitido,475,19/05/2026,"186,240.00","9,312.00",2,Impreso,"216,038.40",Fabiola Hernandez Coronel
+Pedido,                4458,       270,GD COMERCIALIZADORA DEL BAJIO,Emitido,476,19/05/2026,"56,000.00","2,800.00",2,Impreso,"64,960.00",Fabiola Hernandez Coronel
+Pedido,                4459,       270,GD COMERCIALIZADORA DEL BAJIO,Emitido,477,19/05/2026,"63,900.00","3,195.00",2,Impreso,"74,124.00",Fabiola Hernandez Coronel
+Pedido,                4446,       270,GD COMERCIALIZADORA DEL BAJIO,Emitido,464,19/05/2026,"64,050.00","3,202.50",2,Ninguno,"74,298.00",Fabiola Hernandez Coronel
+Pedido,                4470,        18,DELMAN INTERNACIONAL,Remitido,OP.19932/OC.17200,19/05/2026,"5,848.70",0.00,3,Impreso,"6,784.49",Luis de León
+Pedido,                4480,       287,PENGUIN RANDOM HOUSE GRUPO EDITORIAL,Remitido,432,19/05/2026,"19,878.90",0.00,2,Impreso,"23,059.52",Oscar Mejia
+Pedido,                4481,       105,COMISION NACIONAL DE LIBROS DE TEXTO GRATUITOS,Rem.Parc.,419,19/05/2026,"40,205,880.00",0.00,2,Impreso,"40,205,880.00",Lic.German Menendez
+Pedido,                4468,        18,DELMAN INTERNACIONAL,Remitido,OP.19922/OC.17201,19/05/2026,"28,574.00",0.00,3,Impreso,"33,145.84",Luis de León
+Pedido,                4469,        18,DELMAN INTERNACIONAL,Remitido,OP.19931/OC.17232,19/05/2026,"4,183.40",0.00,3,Impreso,"4,852.74",Luis de León
+Pedido,                4471,        18,DELMAN INTERNACIONAL,Remitido,OP.19933/OC.17202,19/05/2026,"1,976.00",0.00,3,Ninguno,"2,292.16",Luis de León
+Pedido,                4474,        18,DELMAN INTERNACIONAL,Remitido,OP.19941/OC.17231,19/05/2026,196.00,0.00,3,Ninguno,227.36,Luis de León
+Pedido,                4466,       270,GD COMERCIALIZADORA DEL BAJIO,Emitido,489,19/05/2026,"33,900.00","1,695.00",2,Impreso,"39,324.00",Fabiola Hernandez Coronel
+Pedido,                4467,       270,GD COMERCIALIZADORA DEL BAJIO,Emitido,488,19/05/2026,"50,600.00","2,530.00",2,Impreso,"58,696.00",Fabiola Hernandez Coronel
+Pedido,                4472,        18,DELMAN INTERNACIONAL,Emitido,OP.19940/OC.17225,19/05/2026,"11,236.40",0.00,3,Ninguno,"13,034.22",Luis de León
+Pedido,                4473,        18,DELMAN INTERNACIONAL,Emitido,OP.19940/OC.17226,19/05/2026,"13,490.40",0.00,3,Ninguno,"15,648.86",Luis de León
+Pedido,                4482,       191,PROMOCIONALES E IMPRESOS AMERICA,Remitido,410,20/05/2026,"1,442,000.00",0.00,2,Impreso,"1,672,720.00",
+Pedido,                4483,       191,PROMOCIONALES E IMPRESOS AMERICA,Remitido,525,20/05/2026,"276,418.80",0.00,2,Impreso,"320,645.81",
+Pedido,                4484,       191,PROMOCIONALES E IMPRESOS AMERICA,Remitido,526,20/05/2026,"1,781,461.50",0.00,2,Impreso,"2,066,495.34",
+Pedido,                4485,       312,INFORMACION INTEGRAL 24/7,Remitido,528,20/05/2026,"20,670.00",0.00,2,Impreso,"23,977.20",
+Pedido,                4500,       263,PUBLICIDAD OPORTUNA,Remitido,29,21/05/2026,"44,324.97",0.00,2,Impreso,"51,416.97",
+Pedido,                4490,       263,PUBLICIDAD OPORTUNA,Remitido,1350,21/05/2026,"8,085.63",0.00,2,Impreso,"9,379.33",
+Pedido,                4501,       337,EDICIONES BOB,Remitido,521,21/05/2026,"118,250.00","5,912.50",2,Impreso,"137,170.00",Beatriz Rodriguez
+Pedido,                4491,       263,PUBLICIDAD OPORTUNA,Remitido,1351,21/05/2026,"15,678.00",0.00,2,Impreso,"18,186.48",
+Pedido,                4512,        18,DELMAN INTERNACIONAL,Remitido,OP.19948/OC.17266,21/05/2026,"5,041.40",0.00,3,Impreso,"5,848.02",Luis de León
+Pedido,                4492,       263,PUBLICIDAD OPORTUNA,Remitido,1352,21/05/2026,"1,830.00",0.00,2,Impreso,"2,122.80",
+Pedido,                4493,       263,PUBLICIDAD OPORTUNA,Remitido,1353,21/05/2026,"3,588.80",0.00,2,Impreso,"4,163.01",
+Pedido,                4504,        18,DELMAN INTERNACIONAL,Remitido,OP.19923/OC.17284,21/05/2026,"28,173.60",0.00,3,Impreso,"32,681.38",Luis de León
+Pedido,                4514,        18,DELMAN INTERNACIONAL,Remitido,OP.19951/OC.17285,21/05/2026,168.00,0.00,3,Impreso,194.88,Luis de León
+Pedido,                4494,       263,PUBLICIDAD OPORTUNA,Remitido,1354,21/05/2026,"52,675.05",0.00,2,Impreso,"61,103.06",
+Pedido,                4505,        18,DELMAN INTERNACIONAL,Emitido,OP.19934/OC.17294,21/05/2026,"13,433.00",0.00,3,Impreso,"15,582.28",Luis de León
+Pedido,                4515,       312,INFORMACION INTEGRAL 24/7,Remitido,529,21/05/2026,"26,394.00",0.00,2,Impreso,"30,617.04",
+Pedido,                4495,       263,PUBLICIDAD OPORTUNA,Remitido,1355,21/05/2026,"85,320.00",0.00,2,Impreso,"98,971.20",
+Pedido,                4516,        18,DELMAN INTERNACIONAL,Remitido,OP.19956/OC.17288,21/05/2026,16.00,0.00,3,Impreso,18.56,Luis de León
+Pedido,                4486,       307,CHEDRAUI BRANDS,Remitido,"422, 420, 421",21/05/2026,"174,873.00",0.00,2,Impreso,"202,852.68",
+Pedido,                4496,       263,PUBLICIDAD OPORTUNA,Remitido,126,21/05/2026,"15,660.00",0.00,2,Impreso,"18,165.60",
+Pedido,                4507,        18,DELMAN INTERNACIONAL,Remitido,OP.19942/OC.17286,21/05/2026,256.00,0.00,3,Impreso,296.96,Luis de León
+Pedido,                4487,       263,PUBLICIDAD OPORTUNA,Remitido,1347,21/05/2026,"2,470.00",0.00,2,Impreso,"2,865.20",
+Pedido,                4497,       263,PUBLICIDAD OPORTUNA,Remitido,148,21/05/2026,"28,019.04",0.00,2,Impreso,"32,502.09",
+Pedido,                4518,        18,DELMAN INTERNACIONAL,Remitido,OP.19958/OC.17276,21/05/2026,576.00,0.00,3,Impreso,668.16,Luis de León
+Pedido,                4488,       263,PUBLICIDAD OPORTUNA,Remitido,1348,21/05/2026,"2,429.00",0.00,2,Impreso,"2,817.64",
+Pedido,                4498,       263,PUBLICIDAD OPORTUNA,Remitido,128,21/05/2026,"91,627.22",0.00,2,Impreso,"106,287.58",
+Pedido,                4489,       263,PUBLICIDAD OPORTUNA,Remitido,1349,21/05/2026,"2,430.00",0.00,2,Impreso,"2,818.80",
+Pedido,                4499,       263,PUBLICIDAD OPORTUNA,Remitido,127,21/05/2026,"20,586.00",0.00,2,Impreso,"23,879.76",
+Pedido,                4510,        18,DELMAN INTERNACIONAL,Emitido,OP.19945/OC.17293,21/05/2026,"28,568.80",0.00,3,Impreso,"33,139.81",Luis de León
+Pedido,                4511,        18,DELMAN INTERNACIONAL,Emitido,OP.19947/OC.17282,21/05/2026,"10,121.80",0.00,3,Impreso,"11,741.29",Luis de León
+Pedido,                4502,        18,DELMAN INTERNACIONAL,Emitido,OP.19887/OC.17287,21/05/2026,"13,169.80",0.00,3,Impreso,"15,276.97",Luis de León
+Pedido,                4503,        18,DELMAN INTERNACIONAL,Emitido,OP.19909/OC.17280,21/05/2026,"11,692.80",0.00,3,Impreso,"13,563.65",Luis de León
+Pedido,                4513,        18,DELMAN INTERNACIONAL,Emitido,OP.19950/OC.17290,21/05/2026,"3,018.40",0.00,3,Impreso,"3,501.34",Luis de León
+Pedido,                4506,        18,DELMAN INTERNACIONAL,Emitido,OP.19939/OC.17281,21/05/2026,"2,691.00",0.00,3,Impreso,"3,121.56",Luis de León
+Pedido,                4517,        18,DELMAN INTERNACIONAL,Emitido,OP.19957/OC.16807,21/05/2026,"2,306.20",0.00,3,Impreso,"2,675.19",Luis de León
+Pedido,                4508,        18,DELMAN INTERNACIONAL,Emitido,OP.19943/OC.17278,21/05/2026,"8,061.20",0.00,3,Impreso,"9,350.99",Luis de León
+Pedido,                4509,        18,DELMAN INTERNACIONAL,Emitido,OP.19944/OC.17283,21/05/2026,"28,567.50",0.00,3,Impreso,"33,138.30",Luis de León
+Pedido,                4519,        18,DELMAN INTERNACIONAL,Emitido,OP.19959/OC.17289,21/05/2026,"4,659.20",0.00,3,Impreso,"5,404.67",Luis de León
