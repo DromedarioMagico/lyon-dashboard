@@ -198,7 +198,7 @@ def render_sidebar_status():
     st.sidebar.markdown("**Base de datos**")
     st.sidebar.metric("Proveedores clasificados", stats["total_clasificados"])
     if stats["ultima_modificacion"]:
-        st.sidebar.caption(f"Últ. modificación: {stats['ultima_modificacion'][:16]}")
+        st.sidebar.caption(f"Últ. modificación: {str(stats['ultima_modificacion'])[:16]}")
 
     if compras_loaded and ventas_loaded:
         st.sidebar.markdown("---")
