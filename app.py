@@ -35,7 +35,7 @@ with col_a:
     st.metric("Proveedores clasificados", stats["total_clasificados"])
 with col_b:
     ultima = stats["ultima_modificacion"]
-    st.metric("Última clasificación", ultima[:10] if ultima else "—")
+    st.metric("Última clasificación", str(ultima)[:10] if ultima else "—")
 with col_c:
     cargados = sum([
         "df_compras" in st.session_state,
