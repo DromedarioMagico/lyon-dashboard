@@ -68,6 +68,18 @@ def _conn():
 
 
 def init_db():
+    try:
+        _conn_test = _Conn()
+        _conn_test._c.close()
+    except Exception as e:
+        import streamlit as st
+        st.error(
+            f"**Error de conexión a la base de datos**\n\n"
+            f"```\n{type(e).__name__}: {e}\n```\n\n"
+            f"Revisa que el `supabase_db_url` en los secrets de Streamlit Cloud sea correcto."
+        )
+        st.stop()
+
     with _conn() as con:
         if _PG_URL:
             con.executescript("""
