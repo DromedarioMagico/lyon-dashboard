@@ -1314,6 +1314,7 @@ with st.container(border=True):
     if sem_event and sem_event.selection and sem_event.selection.points:
         pt        = sem_event.selection.points[0]
         clicked_x = pt.get("x", "") if isinstance(pt, dict) else getattr(pt, "x", "")
+        st.info(f"DEBUG — pt type: {type(pt).__name__} | pt: {pt} | clicked_x: {repr(clicked_x)}")
         if clicked_x:
             st.session_state["drill_semana"] = str(clicked_x)
             st.session_state.pop("curva_semanal_chart", None)
