@@ -98,6 +98,7 @@ def plot_curva_semanal_compras(df):
         template="plotly_white", height=480, showlegend=False,
         margin=dict(t=100, b=60, l=70, r=40),
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        dragmode="select",
     )
     fig.update_yaxes(tickformat=",.0f", tickprefix="$")
     return fig
@@ -379,6 +380,7 @@ def plot_curva_semanal_ventas(df):
         template="plotly_white", height=480, showlegend=False,
         margin=dict(t=100, b=60, l=80, r=40),
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        dragmode="select",
     )
     fig.update_yaxes(tickformat=",.0f", tickprefix="$")
     return fig
