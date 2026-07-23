@@ -8,7 +8,7 @@ import streamlit as st
 from core.catalogos import COLOR_LYON, COLOR_VENTAS, label_mes
 from core.database import init_db
 from core.etl_ventas import cargar_ventas, aplicar_vendedores
-from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav, breadcrumb
+from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav, breadcrumb, render_periodo_filter
 from core.plots import (
     plot_donut_clientes_ventas,
     plot_donut_resto_clientes,
@@ -739,18 +739,12 @@ if st.session_state.get("drill_vendedor"):
     _render_detalle_vendedor(df_full, st.session_state["drill_vendedor"])
     st.stop()
 
-# ── Sidebar filters (checkboxes) ──────────────────────────────────────────────
-meses_disponibles    = sorted(df_full["_Mes"].unique())
-meses_label_a_period = {label_mes(m): m for m in meses_disponibles}
+# ── Sidebar filters ───────────────────────────────────────────────────────────
+meses_disponibles = sorted(df_full["_Mes"].unique())
 
 with st.sidebar:
     st.markdown("### Filtros")
-
-    st.markdown("**Meses**")
-    meses_sel = []
-    for lbl, period in meses_label_a_period.items():
-        if st.checkbox(lbl, value=True, key=f"vta_mes_{lbl}"):
-            meses_sel.append(period)
+    meses_sel = render_periodo_filter("vta", meses_disponibles)
 
     st.markdown("---")
     if st.button("🗑 Borrar datos y volver a subir", use_container_width=True):

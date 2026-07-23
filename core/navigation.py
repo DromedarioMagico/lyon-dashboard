@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 from core.database import get_stats
+from core.catalogos import ESPANOL_MES
 
 _DIR  = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_DIR)
@@ -392,3 +393,59 @@ def breadcrumb(items):
             with cols[col_idx]:
                 st.markdown("›")
             col_idx += 1
+
+
+_MES_NOMBRES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun",
+                "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+_NOMBRE_A_NUM = {n: i + 1 for i, n in enumerate(_MES_NOMBRES)}
+
+
+def render_periodo_filter(prefix, meses_disponibles):
+    """
+    Compact year + month two-level filter for the sidebar.
+
+    prefix            : unique string to namespace widget keys ("cmp", "vta", etc.)
+    meses_disponibles : sorted list of pandas Period objects available in the dataset
+
+    Returns list of Period objects matching the user selection.
+    """
+    if not meses_disponibles:
+        return []
+
+    años_disponibles = sorted({p.year for p in meses_disponibles})
+
+    st.markdown("**Período**")
+
+    if len(años_disponibles) > 1:
+        años_sel = st.multiselect(
+            "Años",
+            options=años_disponibles,
+            default=años_disponibles,
+            key=f"{prefix}_años",
+            label_visibility="collapsed",
+        )
+    else:
+        años_sel = años_disponibles
+        st.caption(f"Año: **{años_disponibles[0]}**")
+
+    if not años_sel:
+        return []
+
+    años_set = set(años_sel)
+    meses_en_años = sorted({p.month for p in meses_disponibles if p.year in años_set})
+    opciones_mes = [_MES_NOMBRES[m - 1] for m in meses_en_años]
+
+    meses_sel_nombres = st.multiselect(
+        "Meses",
+        options=opciones_mes,
+        default=opciones_mes,
+        key=f"{prefix}_meses",
+        label_visibility="collapsed",
+    )
+
+    meses_num_sel = {_NOMBRE_A_NUM[n] for n in meses_sel_nombres}
+
+    return [
+        p for p in meses_disponibles
+        if p.year in años_set and p.month in meses_num_sel
+    ]

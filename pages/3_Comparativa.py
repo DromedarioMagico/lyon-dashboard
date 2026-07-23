@@ -11,7 +11,7 @@ from core.etl_compras import aplicar_clasificaciones
 from core.etl_ventas import aplicar_vendedores
 from core.navigation import (
     render_sidebar_search, render_sidebar_status,
-    inject_custom_css, handle_pending_nav,
+    inject_custom_css, handle_pending_nav, render_periodo_filter,
 )
 
 st.set_page_config(
@@ -151,12 +151,7 @@ st.caption(
 # ── Filtros sidebar ───────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### Filtros")
-    st.markdown("**Meses (periodo común)**")
-    meses_label_map = {label_mes(m): m for m in meses_comunes}
-    meses_sel = []
-    for lbl, period in meses_label_map.items():
-        if st.checkbox(lbl, value=True, key=f"cmp_cmn_{lbl}"):
-            meses_sel.append(period)
+    meses_sel = render_periodo_filter("cmn", meses_comunes)
 
 if not meses_sel:
     st.warning("Selecciona al menos un mes.")

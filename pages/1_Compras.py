@@ -11,7 +11,7 @@ from core.catalogos import (
 )
 from core.database import init_db
 from core.etl_compras import cargar_compras, aplicar_clasificaciones
-from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav, breadcrumb
+from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav, breadcrumb, render_periodo_filter
 from core.plots import (
     plot_donut_categorias,
     plot_curva_semanal_compras,
@@ -1211,17 +1211,12 @@ st.caption(
 df_full = aplicar_clasificaciones(st.session_state.df_compras)
 
 # ── Sidebar filters ───────────────────────────────────────────────────────────
-meses_disponibles    = sorted(df_full["_Mes"].unique())
-meses_label_a_period = {label_mes(m): m for m in meses_disponibles}
-cats_opciones        = [ETIQ_PENDIENTE] + CATALOGO_CATEGORIAS
+meses_disponibles = sorted(df_full["_Mes"].unique())
+cats_opciones     = [ETIQ_PENDIENTE] + CATALOGO_CATEGORIAS
 
 with st.sidebar:
     st.markdown("### Filtros")
-    st.markdown("**Meses**")
-    meses_sel = []
-    for lbl, period in meses_label_a_period.items():
-        if st.checkbox(lbl, value=True, key=f"cmp_mes_{lbl}"):
-            meses_sel.append(period)
+    meses_sel = render_periodo_filter("cmp", meses_disponibles)
 
     st.markdown("**Categorías**")
     cats_sel = []
@@ -1314,7 +1309,6 @@ with st.container(border=True):
     if sem_event and sem_event.selection and sem_event.selection.points:
         pt        = sem_event.selection.points[0]
         clicked_x = pt.get("x", "") if isinstance(pt, dict) else getattr(pt, "x", "")
-        st.info(f"DEBUG — pt type: {type(pt).__name__} | pt: {pt} | clicked_x: {repr(clicked_x)}")
         if clicked_x:
             st.session_state["drill_semana"] = str(clicked_x)
             st.session_state.pop("curva_semanal_chart", None)
