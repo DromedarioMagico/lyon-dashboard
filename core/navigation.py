@@ -1,7 +1,6 @@
 import os
 import streamlit as st
 from core.database import get_stats
-from core.catalogos import ESPANOL_MES
 
 _DIR  = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_DIR)
@@ -213,12 +212,25 @@ def render_sidebar_status():
                 _pct = step / total
                 _bar.progress(_pct, text=f"Renderizando {step}/{total}: {label}")
 
+            # Resolve active period filter: comparativa > intersection of cmp+vta > None
+            _sel_c = set(st.session_state.get("periodo_sel_cmp", []))
+            _sel_v = set(st.session_state.get("periodo_sel_vta", []))
+            _sel_cmn = st.session_state.get("periodo_sel_cmn")
+            if _sel_cmn:
+                _meses_filtrar = sorted(_sel_cmn)
+            elif _sel_c or _sel_v:
+                _inter = _sel_c & _sel_v if (_sel_c and _sel_v) else (_sel_c or _sel_v)
+                _meses_filtrar = sorted(_inter) if _inter else None
+            else:
+                _meses_filtrar = None
+
             _html = generate_report_html(
                 st.session_state.df_compras,
                 st.session_state.df_ventas,
                 st.session_state.get("df_compras_meta", {}),
                 st.session_state.get("df_ventas_meta",  {}),
                 on_progress=_on_progress,
+                meses_filtrar=_meses_filtrar,
             )
             _bar.empty()
             _info.empty()
@@ -397,55 +409,54 @@ def breadcrumb(items):
 
 _MES_NOMBRES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun",
                 "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
-_NOMBRE_A_NUM = {n: i + 1 for i, n in enumerate(_MES_NOMBRES)}
 
 
 def render_periodo_filter(prefix, meses_disponibles):
     """
-    Compact year + month two-level filter for the sidebar.
+    Accordion-style year+month filter for the sidebar.
 
-    prefix            : unique string to namespace widget keys ("cmp", "vta", etc.)
-    meses_disponibles : sorted list of pandas Period objects available in the dataset
+    Each year shows as a checkbox (last 2 years pre-selected, older ones off).
+    Active years expand into a 4-column month grid. Saves selection to
+    st.session_state[f"periodo_sel_{prefix}"] for use by the report generator.
 
-    Returns list of Period objects matching the user selection.
+    Returns sorted List[Period] matching the user's selection.
     """
     if not meses_disponibles:
         return []
 
-    años_disponibles = sorted({p.year for p in meses_disponibles})
+    from datetime import datetime as _dt
+    año_actual = _dt.now().year
+    años_recientes = {año_actual, año_actual - 1}
+    años_disponibles = sorted({p.year for p in meses_disponibles}, reverse=True)
 
     st.markdown("**Período**")
 
-    if len(años_disponibles) > 1:
-        años_sel = st.multiselect(
-            "Años",
-            options=años_disponibles,
-            default=años_disponibles,
-            key=f"{prefix}_años",
-            label_visibility="collapsed",
+    meses_sel = []
+
+    for año in años_disponibles:
+        es_reciente = año in años_recientes
+        meses_del_año = sorted([p for p in meses_disponibles if p.year == año])
+
+        incluir = st.checkbox(
+            str(año),
+            value=es_reciente,
+            key=f"{prefix}_{año}_on",
         )
-    else:
-        años_sel = años_disponibles
-        st.caption(f"Año: **{años_disponibles[0]}**")
 
-    if not años_sel:
-        return []
+        if incluir:
+            for p in meses_del_año:
+                k = f"{prefix}_{año}_{p.month}"
+                if k not in st.session_state:
+                    st.session_state[k] = True
 
-    años_set = set(años_sel)
-    meses_en_años = sorted({p.month for p in meses_disponibles if p.year in años_set})
-    opciones_mes = [_MES_NOMBRES[m - 1] for m in meses_en_años]
+            cols = st.columns(4)
+            for i, p in enumerate(meses_del_año):
+                with cols[i % 4]:
+                    if st.checkbox(_MES_NOMBRES[p.month - 1], key=f"{prefix}_{año}_{p.month}"):
+                        meses_sel.append(p)
 
-    meses_sel_nombres = st.multiselect(
-        "Meses",
-        options=opciones_mes,
-        default=opciones_mes,
-        key=f"{prefix}_meses",
-        label_visibility="collapsed",
-    )
+            st.markdown("")
 
-    meses_num_sel = {_NOMBRE_A_NUM[n] for n in meses_sel_nombres}
-
-    return [
-        p for p in meses_disponibles
-        if p.year in años_set and p.month in meses_num_sel
-    ]
+    result = sorted(meses_sel)
+    st.session_state[f"periodo_sel_{prefix}"] = result
+    return result

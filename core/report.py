@@ -77,6 +77,7 @@ def generate_report_html(
     meta_compras: dict | None = None,
     meta_ventas: dict | None = None,
     on_progress=None,          # callable(step: int, total: int, label: str) | None
+    meses_filtrar: list | None = None,  # List[Period] from sidebar filter
 ) -> str:
     meta_compras = meta_compras or {}
     meta_ventas  = meta_ventas  or {}
@@ -86,6 +87,9 @@ def generate_report_html(
     df_v = aplicar_vendedores(df_ventas_raw.copy())
 
     meses_comunes = sorted(set(df_c["_Mes"].unique()) & set(df_v["_Mes"].unique()))
+    if meses_filtrar:
+        _filtro_set = set(meses_filtrar)
+        meses_comunes = [m for m in meses_comunes if m in _filtro_set]
     if not meses_comunes:
         return "<html><body><p>Sin datos en periodo común.</p></body></html>"
 
@@ -551,6 +555,10 @@ body{font-family:'Segoe UI',system-ui,-apple-system,Arial,sans-serif;
               padding:.45rem 1.8rem;border-radius:30px;display:inline-block;
               margin-bottom:2.5rem}
 .cover-meta{font-size:.8rem;opacity:.55;line-height:1.8}
+.cover-filter{font-size:.75rem;background:rgba(255,255,255,.15);
+              border:1px solid rgba(255,255,255,.3);border-radius:20px;
+              padding:.3rem 1rem;display:inline-block;margin-bottom:1rem;
+              letter-spacing:.03em;opacity:.9}
 
 .wrap{max-width:1200px;margin:0 auto;padding:2rem 1.5rem}
 
@@ -688,6 +696,18 @@ body{font-family:'Segoe UI',system-ui,-apple-system,Arial,sans-serif;
         + desfase_box
     )
 
+    # Build cover filter badge
+    if meses_filtrar:
+        _mf = sorted(meses_filtrar)
+        _años_fil = sorted({p.year for p in _mf})
+        _fil_label = (
+            f"Filtro activo: {label_mes(_mf[0])} – {label_mes(_mf[-1])}"
+            f" ({', '.join(str(a) for a in _años_fil)})"
+        )
+        _cover_filter = f'<div class="cover-filter">🔍 {_fil_label}</div>'
+    else:
+        _cover_filter = ""
+
     html = f"""<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -704,6 +724,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,Arial,sans-serif;
   <div class="cover-divider"></div>
   <div class="cover-title">Reporte Ejecutivo<br>Compras vs Ventas</div>
   <div class="cover-period">📅 {periodo}</div>
+  {_cover_filter}
   <div class="cover-meta">
     Compras: {meta_compras.get('archivo', 'datos de compras')}<br>
     Ventas: {meta_ventas.get('archivo', 'datos de ventas')}<br>
@@ -721,7 +742,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,Arial,sans-serif;
 </div>
 
 <div class="rpt-footer">
-  LYON AG — Reporte Ejecutivo · Período: {periodo} · Generado: {fecha_gen} · Confidencial
+  LYON AG — Reporte Ejecutivo · Período: {periodo}{" · " + _fil_label if meses_filtrar else ""} · Generado: {fecha_gen} · Confidencial
 </div>
 
 </body>
