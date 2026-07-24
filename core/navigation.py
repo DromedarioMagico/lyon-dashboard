@@ -53,19 +53,22 @@ def inject_custom_css():
         padding-top: 0.25rem !important;
         padding-bottom: 2rem !important;
     }
-    /* Strip the header chrome (Deploy menu + rainbow bar) but KEEP the header
-       as a layer so the collapsed-sidebar expand arrow stays reachable. */
+    /* Strip the header chrome but KEEP stToolbar visible — the collapsed-sidebar
+       expand arrow (stExpandSidebarButton) is a CHILD of stToolbar, so hiding
+       the whole toolbar also hides the arrow. Hide only the unwanted children. */
     header[data-testid="stHeader"] {
         background: transparent !important;
         box-shadow: none !important;
     }
-    [data-testid="stToolbar"],
-    [data-testid="stDecoration"] { display: none !important; }
+    [data-testid="stDecoration"],
+    [data-testid="stToolbarActions"],
+    [data-testid="stMainMenu"],
+    [data-testid="stStatusWidget"],
+    [data-testid="stDeployButton"] { display: none !important; }
     /* Always keep the expand-sidebar control visible & clickable */
-    [data-testid="stSidebarCollapsedControl"],
     [data-testid="stExpandSidebarButton"],
-    [data-testid="collapsedControl"] {
-        display: flex !important;
+    [data-testid="stSidebarCollapseButton"] {
+        display: inline-flex !important;
         visibility: visible !important;
         opacity: 1 !important;
         pointer-events: auto !important;
