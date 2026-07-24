@@ -51,17 +51,123 @@ prov_df = (
                Facturas=("Gasto_Total_MXN", "count"),
                Categoria=("Categoria", "first"),
                Origen=("Origen", "first"),
+               Ultima_Factura=("Fecha de documento", "max"),
            )
            .sort_values("Gasto_Total", ascending=False)
 )
 
-total_prov   = len(prov_df)
-pend_mask    = prov_df["Categoria"] == ETIQ_PENDIENTE
-n_pendientes = pend_mask.sum()
+# ── Split 2020+ vs histórico (según la fecha de la última factura) ─────────────
+_CORTE_HIST = pd.Timestamp("2020-01-01")
+_rec_mask   = prov_df["Ultima_Factura"] >= _CORTE_HIST
+prov_rec    = prov_df[_rec_mask].copy()
+prov_hist   = prov_df[~_rec_mask].copy()
+
+# KPIs y contadores se calculan SOLO sobre proveedores 2020+
+total_prov   = len(prov_rec)
+pend_mask    = prov_rec["Categoria"] == ETIQ_PENDIENTE
+n_pendientes = int(pend_mask.sum())
 n_clasif     = total_prov - n_pendientes
-gasto_total  = prov_df["Gasto_Total"].sum()
-gasto_clasif = prov_df.loc[~pend_mask, "Gasto_Total"].sum()
+gasto_total  = prov_rec["Gasto_Total"].sum()
+gasto_clasif = prov_rec.loc[~pend_mask, "Gasto_Total"].sum()
 pct_cob      = gasto_clasif / gasto_total * 100 if gasto_total else 0
+n_hist       = len(prov_hist)
+
+def _render_tabla_editable(base_df, prefijo):
+    """
+    Excel-like editable provider table: filter by category/name, Top-N selector,
+    inline category editing (dropdown), and save (upsert / delete-to-pending).
+    `prefijo` namespaces widget keys so several instances don't collide.
+    `base_df` must include: Proveedor, Categoria, Gasto_Total, Facturas, Origen,
+    Ultima_Factura.
+    """
+    opciones_cat = [ETIQ_PENDIENTE] + CATALOGO_CATEGORIAS
+
+    fc1, fc2, fc3 = st.columns([3, 3, 2])
+    with fc1:
+        cats_filtro = st.multiselect(
+            "Filtrar por categoría", options=opciones_cat, default=[],
+            placeholder="Todas las categorías", key=f"{prefijo}_cat_filter",
+        )
+    with fc2:
+        busqueda = st.text_input(
+            "Buscar proveedor", placeholder="Escribe parte del nombre…",
+            key=f"{prefijo}_busq",
+        )
+    with fc3:
+        top_sel = st.selectbox(
+            "Mostrar", ["Top 50", "Top 100", "Top 200", "Todos"], key=f"{prefijo}_topn",
+        )
+
+    tabla = base_df.copy()
+    if cats_filtro:
+        tabla = tabla[tabla["Categoria"].isin(cats_filtro)]
+    if busqueda:
+        tabla = tabla[tabla["Proveedor"].str.contains(busqueda, case=False, na=False)]
+    tabla = tabla.sort_values("Gasto_Total", ascending=False).reset_index(drop=True)
+    _limite = {"Top 50": 50, "Top 100": 100, "Top 200": 200}.get(top_sel, len(tabla))
+    tabla = tabla.head(_limite).reset_index(drop=True)
+
+    if len(tabla) == 0:
+        st.info("Sin proveedores para ese filtro.")
+        return
+
+    st.caption(
+        f"Mostrando **{len(tabla)}** proveedor(es) · "
+        f"Gasto en pantalla: **${tabla['Gasto_Total'].sum()/1e6:,.2f}M MXN**"
+    )
+
+    tabla["Ultima"] = tabla["Ultima_Factura"].dt.strftime("%b %Y")
+    edit_df = tabla[["Proveedor", "Categoria", "Gasto_Total",
+                     "Facturas", "Ultima", "Origen"]].copy()
+
+    _editor_key = f"{prefijo}_editor_{top_sel}_{busqueda}_{'-'.join(sorted(cats_filtro))}"
+
+    edited = st.data_editor(
+        edit_df,
+        use_container_width=True,
+        hide_index=True,
+        num_rows="fixed",
+        key=_editor_key,
+        column_config={
+            "Proveedor":   st.column_config.TextColumn("Proveedor", disabled=True),
+            "Categoria":   st.column_config.SelectboxColumn(
+                "Categoría", options=opciones_cat, required=True, width="medium",
+            ),
+            "Gasto_Total": st.column_config.NumberColumn(
+                "Gasto (MXN)", format="$%,.0f", disabled=True,
+            ),
+            "Facturas":    st.column_config.NumberColumn(
+                "Facturas", format="%d", disabled=True,
+            ),
+            "Ultima":      st.column_config.TextColumn("Última factura", disabled=True),
+            "Origen":      st.column_config.TextColumn("Origen", disabled=True),
+        },
+        height=min(650, 45 + 36 * len(edit_df)),
+    )
+
+    if st.button("💾 Guardar cambios", type="primary", key=f"{prefijo}_save"):
+        cambios = 0
+        for i in range(len(edit_df)):
+            prov    = edit_df.iloc[i]["Proveedor"]
+            cat_old = edit_df.iloc[i]["Categoria"]
+            cat_new = edited.iloc[i]["Categoria"]
+            if cat_new == cat_old:
+                continue
+            if cat_new == ETIQ_PENDIENTE:
+                delete_clasificacion(prov)
+                log_evento("desclasificacion", f"{prov} → Pendiente")
+            else:
+                upsert_clasificacion(prov, cat_new, origen="usuario")
+                log_evento("reclasificacion", f"{prov} → {cat_new}")
+            cambios += 1
+
+        if cambios:
+            st.session_state.pop(_editor_key, None)
+            st.success(f"✅ {cambios} cambio(s) guardado(s).")
+            st.rerun()
+        else:
+            st.info("No hubo cambios que guardar.")
+
 
 # ── Outer tabs ────────────────────────────────────────────────────────────────
 tab_prov, tab_vend = st.tabs(["Proveedores", "Vendedores"])
@@ -139,15 +245,21 @@ with tab_prov:
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Proveedores totales",   f"{total_prov:,}")
-    c2.metric("Clasificados",          f"{n_clasif:,}",     delta=f"{n_clasif/total_prov*100:.0f}%")
+    c2.metric("Clasificados",          f"{n_clasif:,}",     delta=f"{n_clasif/total_prov*100:.0f}%" if total_prov else "0%")
     c3.metric("Pendientes",            f"{n_pendientes:,}", delta=f"-{n_pendientes}", delta_color="inverse")
     c4.metric("Cobertura del gasto",   f"{pct_cob:.1f}%")
+    st.caption(
+        f"Métricas sobre proveedores con actividad **2020 en adelante**. "
+        f"Hay **{n_hist}** proveedores históricos (última factura antes de 2020) "
+        f"en la pestaña «🕰 Histórico»."
+    )
 
     st.divider()
 
-    tab_pend, tab_clasif = st.tabs([
+    tab_pend, tab_clasif, tab_hist = st.tabs([
         f"⚠️ Pendientes de clasificar ({n_pendientes})",
         f"📝 Revisar y editar ({total_prov})",
+        f"🕰 Histórico pre-2020 ({n_hist})",
     ])
 
     # ── Pendientes ─────────────────────────────────────────────────────────────
@@ -155,7 +267,7 @@ with tab_prov:
         if n_pendientes == 0:
             st.success("¡Todos los proveedores están clasificados!")
         else:
-            pendientes = prov_df[pend_mask].copy().reset_index(drop=True)
+            pendientes = prov_rec[pend_mask].copy().reset_index(drop=True)
             st.caption(
                 f"{n_pendientes} proveedores representan "
                 f"**${(gasto_total - gasto_clasif)/1e6:,.2f}M MXN** "
@@ -232,102 +344,27 @@ with tab_prov:
                         else:
                             st.warning("No seleccionaste ninguna categoría.")
 
-    # ── Revisar y editar (tabla tipo Excel) ────────────────────────────────────
+    # ── Revisar y editar (tabla tipo Excel) — proveedores 2020+ ────────────────
     with tab_clasif:
         st.caption(
             "Filtra por categoría o nombre y **edita la categoría de cualquier proveedor "
             "directamente en la tabla** (columna «Categoría»). Ordenada por impacto en gasto "
-            "(mayor a menor). Al terminar, presiona **Guardar cambios**."
+            "(mayor a menor). Solo proveedores con actividad **2020 en adelante**. "
+            "Al terminar, presiona **Guardar cambios**."
         )
+        _render_tabla_editable(prov_rec, "rec")
 
-        opciones_cat = [ETIQ_PENDIENTE] + CATALOGO_CATEGORIAS
-
-        fc1, fc2, fc3 = st.columns([3, 3, 2])
-        with fc1:
-            cats_filtro = st.multiselect(
-                "Filtrar por categoría",
-                options=opciones_cat,
-                default=[],
-                placeholder="Todas las categorías",
-                key="edit_cat_filter",
-            )
-        with fc2:
-            busqueda2 = st.text_input(
-                "Buscar proveedor", placeholder="Escribe parte del nombre…", key="busq_clasif"
-            )
-        with fc3:
-            top_sel = st.selectbox(
-                "Mostrar", ["Top 50", "Top 100", "Top 200", "Todos"], key="edit_topn"
-            )
-
-        tabla = prov_df.copy()
-        if cats_filtro:
-            tabla = tabla[tabla["Categoria"].isin(cats_filtro)]
-        if busqueda2:
-            tabla = tabla[tabla["Proveedor"].str.contains(busqueda2, case=False, na=False)]
-        tabla = tabla.sort_values("Gasto_Total", ascending=False).reset_index(drop=True)
-
-        _limite = {"Top 50": 50, "Top 100": 100, "Top 200": 200}.get(top_sel, len(tabla))
-        tabla = tabla.head(_limite).reset_index(drop=True)
-
-        if len(tabla) == 0:
-            st.info("Sin proveedores para ese filtro.")
+    # ── Histórico pre-2020 ──────────────────────────────────────────────────────
+    with tab_hist:
+        st.caption(
+            "Proveedores cuya **última factura es anterior a 2020** — sin actividad "
+            "reciente. Suelen ser difíciles de identificar; se apartan aquí para no "
+            "estorbar el flujo normal, pero puedes clasificarlos igual si lo necesitas."
+        )
+        if n_hist == 0:
+            st.info("No hay proveedores históricos (todos tienen actividad 2020+).")
         else:
-            st.caption(
-                f"Mostrando **{len(tabla)}** proveedor(es) · "
-                f"Gasto en pantalla: **${tabla['Gasto_Total'].sum()/1e6:,.2f}M MXN**"
-            )
-
-            edit_df = tabla[["Proveedor", "Categoria", "Gasto_Total", "Facturas", "Origen"]].copy()
-
-            # Editor key tied to the filter view so changing filters starts a clean grid
-            _editor_key = f"prov_editor_{top_sel}_{busqueda2}_{'-'.join(sorted(cats_filtro))}"
-
-            edited = st.data_editor(
-                edit_df,
-                use_container_width=True,
-                hide_index=True,
-                num_rows="fixed",
-                key=_editor_key,
-                column_config={
-                    "Proveedor":   st.column_config.TextColumn("Proveedor", disabled=True),
-                    "Categoria":   st.column_config.SelectboxColumn(
-                        "Categoría", options=opciones_cat, required=True, width="medium",
-                    ),
-                    "Gasto_Total": st.column_config.NumberColumn(
-                        "Gasto (MXN)", format="$%,.0f", disabled=True,
-                    ),
-                    "Facturas":    st.column_config.NumberColumn(
-                        "Facturas", format="%d", disabled=True,
-                    ),
-                    "Origen":      st.column_config.TextColumn("Origen", disabled=True),
-                },
-                height=min(650, 45 + 36 * len(edit_df)),
-            )
-
-            if st.button("💾 Guardar cambios", type="primary", key="btn_save_editor"):
-                cambios = 0
-                for i in range(len(edit_df)):
-                    prov    = edit_df.iloc[i]["Proveedor"]
-                    cat_old = edit_df.iloc[i]["Categoria"]
-                    cat_new = edited.iloc[i]["Categoria"]
-                    if cat_new == cat_old:
-                        continue
-                    if cat_new == ETIQ_PENDIENTE:
-                        delete_clasificacion(prov)
-                        log_evento("desclasificacion", f"{prov} → Pendiente")
-                    else:
-                        upsert_clasificacion(prov, cat_new, origen="usuario")
-                        log_evento("reclasificacion", f"{prov} → {cat_new}")
-                    cambios += 1
-
-                if cambios:
-                    st.session_state.pop(_editor_key, None)
-                    st.success(f"✅ {cambios} cambio(s) guardado(s).")
-                    st.rerun()
-                else:
-                    st.info("No hubo cambios que guardar.")
-                    st.markdown("</div>", unsafe_allow_html=True)
+            _render_tabla_editable(prov_hist, "hist")
 
 
 # ════════════════════════════════════════════════════════════════════════════════
