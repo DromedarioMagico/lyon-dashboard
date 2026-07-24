@@ -95,7 +95,9 @@ def _render_tabla_editable(base_df, prefijo):
         )
     with fc3:
         top_sel = st.selectbox(
-            "Mostrar", ["Top 50", "Top 100", "Top 200", "Todos"], key=f"{prefijo}_topn",
+            "Mostrar",
+            ["Top 50", "Top 100", "Top 200", "Todas (lista completa)"],
+            key=f"{prefijo}_topn",
         )
 
     tabla = base_df.copy()
@@ -167,6 +169,85 @@ def _render_tabla_editable(base_df, prefijo):
             st.rerun()
         else:
             st.info("No hubo cambios que guardar.")
+
+
+def _render_asignacion(clientes_df, opciones_vend, prefijo, mostrar_ultimo=False):
+    """
+    Per-client vendor assignment UI (search + one card per client + save-all).
+    `prefijo` namespaces widget keys. When `mostrar_ultimo` is True, each card
+    shows the client's last-order month (useful for historical clients).
+    `clientes_df` must include: Cliente_Nombre, Ventas, Pedidos, Ultimo_Pedido.
+    """
+    busq = st.text_input(
+        "Buscar cliente", placeholder="Escribe parte del nombre…", key=f"{prefijo}_busq",
+    )
+    filtrados = clientes_df.copy()
+    if busq:
+        filtrados = filtrados[
+            filtrados["Cliente_Nombre"].str.contains(busq, case=False, na=False)
+        ]
+
+    if len(filtrados) == 0:
+        st.info("Sin resultados para esa búsqueda.")
+        return
+
+    st.caption(
+        f"Mostrando **{len(filtrados)}** cliente(s). "
+        "Asigna un vendedor y presiona **Guardar asignaciones** al final."
+    )
+
+    selecciones_v = {}
+    for i, (_, row) in enumerate(filtrados.iterrows()):
+        with st.container(border=True):
+            col_info, col_vend = st.columns([4, 3])
+            with col_info:
+                st.markdown(f"**{row['Cliente_Nombre']}**")
+                _extra = ""
+                if mostrar_ultimo and pd.notna(row.get("Ultimo_Pedido")):
+                    _extra = f"  ·  Último pedido: **{row['Ultimo_Pedido'].strftime('%b %Y')}**"
+                st.caption(
+                    f"Ventas: **${row['Ventas']:,.0f} MXN**  ·  "
+                    f"{int(row['Pedidos'])} pedido(s){_extra}"
+                )
+            with col_vend:
+                vend_sel = st.selectbox(
+                    "Vendedor", options=opciones_vend, index=0,
+                    key=f"{prefijo}_sel_{i}", label_visibility="collapsed",
+                )
+                if vend_sel == "✏️ Escribir nombre…":
+                    vend_custom = st.text_input(
+                        "Nombre del vendedor", key=f"{prefijo}_custom_{i}",
+                        placeholder="Nombre completo…", label_visibility="collapsed",
+                    )
+                else:
+                    vend_custom = ""
+            selecciones_v[row["Cliente_Nombre"]] = {"sel": vend_sel, "custom": vend_custom}
+
+    st.markdown("")
+    col_btn, _ = st.columns([2, 5])
+    with col_btn:
+        if st.button(
+            "💾 Guardar asignaciones", type="primary",
+            use_container_width=True, key=f"{prefijo}_save",
+        ):
+            guardados = 0
+            for cliente, vals in selecciones_v.items():
+                vend_final = (
+                    vals["custom"].strip() if vals["sel"] == "✏️ Escribir nombre…"
+                    else vals["sel"]
+                )
+                if vend_final and vend_final != "— seleccionar —":
+                    upsert_vendedor_cliente(cliente, vend_final)
+                    log_evento("asignacion_vendedor", f"{cliente} → {vend_final}")
+                    guardados += 1
+            if guardados:
+                st.success(
+                    f"✅ {guardados} cliente(s) asignado(s). "
+                    "El dashboard de Ventas se actualizará automáticamente."
+                )
+                st.rerun()
+            else:
+                st.warning("No seleccionaste ningún vendedor.")
 
 
 # ── Outer tabs ────────────────────────────────────────────────────────────────
@@ -384,16 +465,35 @@ with tab_vend:
         clientes_sin_df = (
             df_v[sin_vend_mask]
             .groupby("Cliente_Nombre", as_index=False)
-            .agg(Ventas=("Importe_MXN", "sum"), Pedidos=("Importe_MXN", "count"))
+            .agg(
+                Ventas=("Importe_MXN", "sum"),
+                Pedidos=("Importe_MXN", "count"),
+                Ultimo_Pedido=("Fecha", "max"),
+            )
             .sort_values("Ventas", ascending=False)
         )
 
+        # ── Split 2020+ vs histórico (por fecha del último pedido) ─────────────
+        clientes_sin_rec  = clientes_sin_df[clientes_sin_df["Ultimo_Pedido"] >= _CORTE_HIST].copy()
+        clientes_sin_hist = clientes_sin_df[clientes_sin_df["Ultimo_Pedido"] <  _CORTE_HIST].copy()
+
+        # Clientes con actividad 2020+ (para las métricas)
+        _cli_ultimo   = df_v.groupby("Cliente_Nombre")["Fecha"].max()
+        _clientes_rec = _cli_ultimo[_cli_ultimo >= _CORTE_HIST].index
+
         asig_db        = get_vendedor_clientes()   # {cliente: vendedor} from DB
-        total_clientes = df_v["Cliente_Nombre"].nunique()
-        n_sin          = len(clientes_sin_df)
+        total_clientes = len(_clientes_rec)        # solo 2020+
+        n_sin          = len(clientes_sin_rec)
         n_asig         = total_clientes - n_sin
         pct_asig       = n_asig / total_clientes * 100 if total_clientes > 0 else 0
         n_en_db        = len(asig_db)
+        n_sin_hist     = len(clientes_sin_hist)
+
+        # Opciones de vendedor (compartidas por las pestañas de asignación)
+        vendedores_conocidos = sorted(
+            df_v[~sin_vend_mask]["Vendedor"].dropna().unique().tolist()
+        )
+        opciones_vend = ["— seleccionar —"] + vendedores_conocidos + ["✏️ Escribir nombre…"]
 
         # Summary
         c1, c2, c3, c4 = st.columns(4)
@@ -403,103 +503,40 @@ with tab_vend:
         c3.metric("Con vendedor",          f"{n_asig:,}",
                   delta=f"{pct_asig:.0f}%")
         c4.metric("Asignados en esta app", f"{n_en_db:,}")
+        st.caption(
+            f"Métricas sobre clientes con pedidos **2020 en adelante**. "
+            f"Hay **{n_sin_hist}** clientes sin asignar cuyo último pedido es "
+            f"anterior a 2020 en la pestaña «🕰 Histórico»."
+        )
 
         st.divider()
 
-        tab_sin, tab_asig = st.tabs([
+        tab_sin, tab_asig, tab_hist_v = st.tabs([
             f"⚠️ Sin asignar ({n_sin})",
             f"✅ Asignados en app ({n_en_db})",
+            f"🕰 Histórico pre-2020 ({n_sin_hist})",
         ])
 
-        # ── Sin asignar ────────────────────────────────────────────────────────
+        # ── Sin asignar (2020+) ──────────────────────────────────────────────────
         with tab_sin:
             if n_sin == 0:
-                st.success("¡Todos los clientes tienen vendedor asignado!")
+                st.success("¡Todos los clientes 2020+ tienen vendedor asignado!")
             else:
-                vendedores_conocidos = sorted(
-                    df_v[~sin_vend_mask]["Vendedor"].dropna().unique().tolist()
-                )
-                opciones_vend = (
-                    ["— seleccionar —"] + vendedores_conocidos + ["✏️ Escribir nombre…"]
-                )
+                _render_asignacion(clientes_sin_rec, opciones_vend, "vsin")
 
-                busq_v = st.text_input(
-                    "Buscar cliente",
-                    placeholder="Escribe parte del nombre…",
-                    key="busq_vend_sin",
-                )
-
-                filtrados = clientes_sin_df.copy()
-                if busq_v:
-                    filtrados = filtrados[
-                        filtrados["Cliente_Nombre"].str.contains(busq_v, case=False, na=False)
-                    ]
-
-                if len(filtrados) == 0:
-                    st.info("Sin resultados para esa búsqueda.")
-                else:
-                    st.caption(
-                        f"Mostrando **{len(filtrados)}** cliente(s) sin vendedor. "
-                        "Asigna un vendedor y presiona **Guardar asignaciones** al final."
-                    )
-
-                    selecciones_v = {}
-                    for i, (_, row) in enumerate(filtrados.iterrows()):
-                        with st.container(border=True):
-                            col_info, col_vend = st.columns([4, 3])
-                            with col_info:
-                                st.markdown(f"**{row['Cliente_Nombre']}**")
-                                st.caption(
-                                    f"Ventas: **${row['Ventas']:,.0f} MXN**  ·  "
-                                    f"{int(row['Pedidos'])} pedido(s)"
-                                )
-                            with col_vend:
-                                vend_sel = st.selectbox(
-                                    "Vendedor",
-                                    options=opciones_vend,
-                                    index=0,
-                                    key=f"vend_sel_{i}",
-                                    label_visibility="collapsed",
-                                )
-                                if vend_sel == "✏️ Escribir nombre…":
-                                    vend_custom = st.text_input(
-                                        "Nombre del vendedor",
-                                        key=f"vend_custom_{i}",
-                                        placeholder="Nombre completo…",
-                                        label_visibility="collapsed",
-                                    )
-                                else:
-                                    vend_custom = ""
-                            selecciones_v[row["Cliente_Nombre"]] = {
-                                "sel": vend_sel, "custom": vend_custom
-                            }
-
-                    st.markdown("")
-                    col_btn, _ = st.columns([2, 5])
-                    with col_btn:
-                        if st.button(
-                            "💾 Guardar asignaciones", type="primary",
-                            use_container_width=True, key="btn_save_vend",
-                        ):
-                            guardados = 0
-                            for cliente, vals in selecciones_v.items():
-                                if vals["sel"] == "✏️ Escribir nombre…":
-                                    vend_final = vals["custom"].strip()
-                                else:
-                                    vend_final = vals["sel"]
-                                if vend_final and vend_final != "— seleccionar —":
-                                    upsert_vendedor_cliente(cliente, vend_final)
-                                    log_evento("asignacion_vendedor",
-                                               f"{cliente} → {vend_final}")
-                                    guardados += 1
-                            if guardados:
-                                st.success(
-                                    f"✅ {guardados} cliente(s) asignado(s). "
-                                    "El dashboard de Ventas se actualizará automáticamente."
-                                )
-                                st.rerun()
-                            else:
-                                st.warning("No seleccionaste ningún vendedor.")
+        # ── Histórico pre-2020 ───────────────────────────────────────────────────
+        with tab_hist_v:
+            st.caption(
+                "Clientes sin vendedor cuyo **último pedido es anterior a 2020**. "
+                "Suelen ser cuentas antiguas de las que ya no se sabe quién las "
+                "manejaba; se apartan aquí, pero puedes asignarlas igual si lo sabes. "
+                "Cada tarjeta indica la fecha del último pedido."
+            )
+            if n_sin_hist == 0:
+                st.info("No hay clientes históricos sin asignar.")
+            else:
+                _render_asignacion(clientes_sin_hist, opciones_vend, "vhist",
+                                   mostrar_ultimo=True)
 
         # ── Asignados en app ───────────────────────────────────────────────────
         with tab_asig:
