@@ -163,30 +163,6 @@ def upsert_clasificacion(proveedor, categoria, notas="", origen="usuario"):
         )
 
 
-def bulk_upsert_clasificaciones(rows):
-    """
-    Upsert many classifications over a SINGLE connection (one commit at the end).
-    rows: iterable of (proveedor, categoria, notas, origen).
-    Returns the number of rows written.
-    """
-    sql = f"""
-        INSERT INTO proveedores_clasificacion
-            (proveedor_exacto_sae, categoria, notas, origen, fecha_modificacion)
-        VALUES ({_PH}, {_PH}, {_PH}, {_PH}, CURRENT_TIMESTAMP)
-        ON CONFLICT(proveedor_exacto_sae) DO UPDATE SET
-            categoria          = EXCLUDED.categoria,
-            notas              = EXCLUDED.notas,
-            origen             = EXCLUDED.origen,
-            fecha_modificacion = CURRENT_TIMESTAMP
-    """
-    n = 0
-    with _conn() as con:
-        for prov, categoria, notas, origen in rows:
-            con.execute(sql, (prov, categoria, notas, origen))
-            n += 1
-    return n
-
-
 def get_stats():
     """Returns summary stats for the Home page."""
     with _conn() as con:
