@@ -14,6 +14,7 @@ from core.etl_compras import cargar_compras, aplicar_clasificaciones
 from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav, breadcrumb, render_periodo_filter, parse_semana_x
 from core.plots import (
     plot_barras_categorias,
+    plot_barras_temporales,
     plot_curva_semanal_compras,
     plot_pareto_proveedores,
     plot_pendientes_clasificar,
@@ -763,20 +764,28 @@ def _render_detalle_categoria(df_full, df_ctx, categoria):
     top5_provs   = prov_shares.head(5).index.tolist()
     top5_display = {p: (p[:28] + "…" if len(p) > 30 else p) for p in top5_provs}
 
+    # Aggregate by year instead of month when the period is long (>24 meses)
+    _anual_area = df_cat["_Mes"].nunique() > 24
+    if _anual_area:
+        _df_area = df_cat.assign(_pk=df_cat["_Mes"].apply(lambda p: p.year))
+        all_x    = sorted(_df_area["_pk"].unique())
+        x_labels = [str(x) for x in all_x]
+    else:
+        _df_area = df_cat.assign(_pk=df_cat["_Mes"])
+        all_x    = sorted(_df_area["_pk"].unique())
+        x_labels = [label_mes(x) for x in all_x]
+
     monthly_prov = (
-        df_cat.groupby(["_Mes", "Proveedor"])["Gasto_Total_MXN"]
+        _df_area.groupby(["_pk", "Proveedor"])["Gasto_Total_MXN"]
         .sum().reset_index()
     )
     monthly_prov["Grp"] = monthly_prov["Proveedor"].apply(
         lambda p: top5_display.get(p, p) if p in top5_provs else "Otros"
     )
     monthly_grp = (
-        monthly_prov.groupby(["_Mes", "Grp"])["Gasto_Total_MXN"]
+        monthly_prov.groupby(["_pk", "Grp"])["Gasto_Total_MXN"]
         .sum().reset_index()
     )
-
-    all_mes  = sorted(df_cat["_Mes"].unique())
-    x_labels = [label_mes(m) for m in all_mes]
 
     grp_order = [top5_display[p] for p in top5_provs
                  if top5_display[p] in monthly_grp["Grp"].values]
@@ -788,10 +797,10 @@ def _render_detalle_categoria(df_full, df_ctx, categoria):
     with st.container(border=True):
         fig_area = go.Figure()
         for idx, grp in enumerate(grp_order):
-            grp_data = monthly_grp[monthly_grp["Grp"] == grp].set_index("_Mes")
+            grp_data = monthly_grp[monthly_grp["Grp"] == grp].set_index("_pk")
             y_vals = [
-                float(grp_data.loc[m, "Gasto_Total_MXN"]) if m in grp_data.index else 0.0
-                for m in all_mes
+                float(grp_data.loc[x, "Gasto_Total_MXN"]) if x in grp_data.index else 0.0
+                for x in all_x
             ]
             color = area_colors[idx % len(area_colors)]
             fig_area.add_trace(go.Scatter(
@@ -805,7 +814,10 @@ def _render_detalle_categoria(df_full, df_ctx, categoria):
                 hovertemplate=f"<b>{grp}</b><br>%{{x}}: $%{{y:,.0f}} MXN<extra></extra>",
             ))
         fig_area.update_layout(
-            title="<b>Gasto Mensual Acumulado por Proveedor</b>",
+            title=(
+                "<b>Gasto Acumulado por Proveedor</b>"
+                + ("<br><sup>Agregado por año</sup>" if _anual_area else "")
+            ),
             template="plotly_white", height=380,
             legend=dict(orientation="h", y=-0.22, x=0, xanchor="left", font=dict(size=10)),
             xaxis_title="", yaxis=dict(tickformat="$,.0f", title="MXN"),
@@ -1080,9 +1092,12 @@ def _render_detalle_proveedor(df_full, df_ctx, proveedor):
         (_prov_bc, None, None),
     ])
 
-    df = df_full[df_full["Proveedor"] == proveedor].copy()
+    df = df_ctx[df_ctx["Proveedor"] == proveedor].copy()
     if len(df) == 0:
-        st.error(f"No se encontraron facturas para **{proveedor}**.")
+        st.warning(
+            f"**{proveedor}** no tiene facturas en el periodo seleccionado. "
+            "Ajusta el filtro de período en el sidebar para verlo."
+        )
         return
 
     categoria   = df["Categoria"].iloc[0]
@@ -1119,30 +1134,15 @@ def _render_detalle_proveedor(df_full, df_ctx, proveedor):
     )
     _render_intra_cat(df_ctx, proveedor, categoria)
 
-    # ── Gasto mensual (historial completo) ────────────────────────────────────
+    # ── Gasto mensual (del periodo filtrado) ──────────────────────────────────
     st.divider()
-    df_mes = (df.groupby("_Mes", as_index=False)["Gasto_Total_MXN"]
-                .sum().sort_values("_Mes"))
-    df_mes["Mes"] = df_mes["_Mes"].apply(label_mes)
-
     with st.container(border=True):
-        fig = px.bar(
-            df_mes, x="Mes", y="Gasto_Total_MXN",
-            title=f"<b>Gasto Mensual — {proveedor}</b> (historial completo)",
-            color_discrete_sequence=[COLOR_LYON], text="Gasto_Total_MXN",
+        st.plotly_chart(
+            plot_barras_temporales(
+                df, "Gasto_Total_MXN", f"Gasto Mensual — {proveedor}", COLOR_LYON
+            ),
+            use_container_width=True,
         )
-        fig.update_traces(
-            texttemplate="$%{text:,.0f}", textposition="outside",
-            hovertemplate="<b>%{x}</b><br>$%{y:,.0f} MXN<extra></extra>",
-        )
-        fig.update_layout(
-            template="plotly_white", height=380, showlegend=False,
-            xaxis_title="", yaxis_title="Gasto (MXN)",
-            margin=dict(t=80, b=40, l=60, r=40),
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        )
-        fig.update_yaxes(tickformat=",.0f", tickprefix="$")
-        st.plotly_chart(fig, use_container_width=True)
 
     # ── Todas las facturas ────────────────────────────────────────────────────
     with st.container(border=True):

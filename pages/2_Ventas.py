@@ -10,6 +10,7 @@ from core.database import init_db
 from core.etl_ventas import cargar_ventas, aplicar_vendedores
 from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav, breadcrumb, render_periodo_filter, parse_semana_x
 from core.plots import (
+    plot_barras_temporales,
     plot_donut_clientes_ventas,
     plot_donut_resto_clientes,
     plot_curva_semanal_ventas,
@@ -46,8 +47,8 @@ _AMBER = "#E97132"
 
 
 # ── Vista de detalle inline ───────────────────────────────────────────────────
-def _render_detalle_cliente(df_full, cliente):
-    df = df_full[df_full["Cliente_Nombre"] == cliente].copy()
+def _render_detalle_cliente(df_ctx, cliente):
+    df = df_ctx[df_ctx["Cliente_Nombre"] == cliente].copy()
     _disp = (df["Cliente_Display"].iloc[0] if len(df) > 0 else cliente)
     _bc   = _disp if len(_disp) <= 50 else _disp[:49] + "…"
     breadcrumb([
@@ -56,7 +57,10 @@ def _render_detalle_cliente(df_full, cliente):
     ])
 
     if len(df) == 0:
-        st.error(f"No se encontraron pedidos para **{cliente}**.")
+        st.warning(
+            f"**{cliente}** no tiene pedidos en el periodo seleccionado. "
+            "Ajusta el filtro de período en el sidebar para verlo."
+        )
         return
 
     display_name  = df["Cliente_Display"].iloc[0]
@@ -87,29 +91,14 @@ def _render_detalle_cliente(df_full, cliente):
 
     st.divider()
 
-    # Ventas mensuales
-    df_mes = (df.groupby("_Mes", as_index=False)["Importe_MXN"]
-                .sum().sort_values("_Mes"))
-    df_mes["Mes"] = df_mes["_Mes"].apply(label_mes)
-
+    # Ventas mensuales (agregación anual automática si el periodo es largo)
     with st.container(border=True):
-        fig = px.bar(
-            df_mes, x="Mes", y="Importe_MXN",
-            title=f"<b>Ventas Mensuales — {display_name}</b>",
-            color_discrete_sequence=[COLOR_VENTAS], text="Importe_MXN",
+        st.plotly_chart(
+            plot_barras_temporales(
+                df, "Importe_MXN", f"Ventas Mensuales — {display_name}", COLOR_VENTAS
+            ),
+            use_container_width=True,
         )
-        fig.update_traces(
-            texttemplate="$%{text:,.0f}", textposition="outside",
-            hovertemplate="<b>%{x}</b><br>$%{y:,.0f} MXN<extra></extra>",
-        )
-        fig.update_layout(
-            template="plotly_white", height=380, showlegend=False,
-            xaxis_title="", yaxis_title="Ventas (MXN)",
-            margin=dict(t=80, b=40, l=60, r=40),
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        )
-        fig.update_yaxes(tickformat=",.0f", tickprefix="$")
-        st.plotly_chart(fig, use_container_width=True)
 
     # Desglose por vendedor (solo si hay más de uno)
     if df["Vendedor"].nunique() > 1:
@@ -157,16 +146,19 @@ def _render_detalle_cliente(df_full, cliente):
 
 
 # ── Vista de detalle por vendedor ────────────────────────────────────────────
-def _render_detalle_vendedor(df_full, vendedor):
+def _render_detalle_vendedor(df_ctx, vendedor):
     _bc_v = vendedor if len(vendedor) <= 50 else vendedor[:49] + "…"
     breadcrumb([
         ("Ventas", {"clear": ["drill_vendedor", "curva_semanal_ventas_chart"]}, None),
         (_bc_v, None, None),
     ])
 
-    df = df_full[df_full["Vendedor"] == vendedor].copy()
+    df = df_ctx[df_ctx["Vendedor"] == vendedor].copy()
     if len(df) == 0:
-        st.error(f"No se encontraron pedidos para **{vendedor}**.")
+        st.warning(
+            f"**{vendedor}** no tiene pedidos en el periodo seleccionado. "
+            "Ajusta el filtro de período en el sidebar para verlo."
+        )
         return
 
     # ── Métricas individuales ──────────────────────────────────────────────────
@@ -202,29 +194,14 @@ def _render_detalle_vendedor(df_full, vendedor):
 
     st.divider()
 
-    # ── Ventas mensuales ───────────────────────────────────────────────────────
-    df_mes = (df.groupby("_Mes", as_index=False)["Importe_MXN"]
-                .sum().sort_values("_Mes"))
-    df_mes["Mes"] = df_mes["_Mes"].apply(label_mes)
-
+    # ── Ventas mensuales (agregación anual automática si el periodo es largo) ──
     with st.container(border=True):
-        fig = px.bar(
-            df_mes, x="Mes", y="Importe_MXN",
-            title=f"<b>Ventas Mensuales — {vendedor}</b>",
-            color_discrete_sequence=[COLOR_VENTAS], text="Importe_MXN",
+        st.plotly_chart(
+            plot_barras_temporales(
+                df, "Importe_MXN", f"Ventas Mensuales — {vendedor}", COLOR_VENTAS
+            ),
+            use_container_width=True,
         )
-        fig.update_traces(
-            texttemplate="$%{text:,.0f}", textposition="outside",
-            hovertemplate="<b>%{x}</b><br>$%{y:,.0f} MXN<extra></extra>",
-        )
-        fig.update_layout(
-            template="plotly_white", height=380, showlegend=False,
-            xaxis_title="", yaxis_title="Ventas (MXN)",
-            margin=dict(t=80, b=40, l=60, r=40),
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        )
-        fig.update_yaxes(tickformat=",.0f", tickprefix="$")
-        st.plotly_chart(fig, use_container_width=True)
 
     # ── Top clientes de este vendedor ──────────────────────────────────────────
     n2d = (df.drop_duplicates("Cliente_Nombre")
@@ -281,7 +258,7 @@ def _render_detalle_vendedor(df_full, vendedor):
     st.divider()
     st.markdown("#### ⚔️ Comparativa con el equipo")
 
-    real_df = df_full[df_full["Vendedor"] != "Sin asignar"]
+    real_df = df_ctx[df_ctx["Vendedor"] != "Sin asignar"]
     team = (real_df.groupby("Vendedor")
             .agg(
                 Ventas=("Importe_MXN", "sum"),
@@ -730,16 +707,8 @@ st.caption(
 
 df_full = aplicar_vendedores(st.session_state.df_ventas.copy())
 
-# ── Modo drill-down ───────────────────────────────────────────────────────────
-if st.session_state.get("drill_cliente"):
-    _render_detalle_cliente(df_full, st.session_state["drill_cliente"])
-    st.stop()
-
-if st.session_state.get("drill_vendedor"):
-    _render_detalle_vendedor(df_full, st.session_state["drill_vendedor"])
-    st.stop()
-
-# ── Sidebar filters ───────────────────────────────────────────────────────────
+# ── Sidebar filters (antes de los drill-downs para que los detalles respeten
+#    el período seleccionado) ────────────────────────────────────────────────
 meses_disponibles = sorted(df_full["_Mes"].unique())
 
 with st.sidebar:
@@ -752,8 +721,18 @@ with st.sidebar:
             st.session_state.pop(key, None)
         st.rerun()
 
+_ctx_v = df_full[df_full["_Mes"].isin(meses_sel)] if meses_sel else df_full
+
+# ── Modo drill-down (respetan el filtro de período vía _ctx_v) ────────────────
+if st.session_state.get("drill_cliente"):
+    _render_detalle_cliente(_ctx_v, st.session_state["drill_cliente"])
+    st.stop()
+
+if st.session_state.get("drill_vendedor"):
+    _render_detalle_vendedor(_ctx_v, st.session_state["drill_vendedor"])
+    st.stop()
+
 if st.session_state.get("drill_semana_v"):
-    _ctx_v = df_full[df_full["_Mes"].isin(meses_sel)] if meses_sel else df_full
     _render_detalle_semana_ventas(df_full, _ctx_v, st.session_state["drill_semana_v"])
     st.stop()
 
@@ -761,7 +740,7 @@ if not meses_sel:
     st.warning("Selecciona al menos un mes.")
     st.stop()
 
-df = df_full[df_full["_Mes"].isin(meses_sel)].copy()
+df = _ctx_v.copy()
 
 if len(df) == 0:
     st.warning("No hay datos para los meses seleccionados.")

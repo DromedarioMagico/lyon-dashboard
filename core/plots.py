@@ -110,6 +110,54 @@ def plot_barras_categorias(df, gasto_total, pct_cobertura, prov_pendientes):
     return fig
 
 
+def plot_barras_temporales(df, value_col, titulo, color, umbral_meses=24):
+    """
+    Bar chart of `value_col` over time for a drill-down detail view.
+
+    Monthly by default, but auto-aggregates by YEAR when the selected period
+    spans more than `umbral_meses` months, so a long history (e.g. loading the
+    full historical file) doesn't crush the axis into unreadable bars.
+
+    `df` must contain a `_Mes` (pandas Period[M]) column.
+    """
+    n_meses = df["_Mes"].nunique()
+    anual = n_meses > umbral_meses
+    if anual:
+        agg = (df.assign(_k=df["_Mes"].apply(lambda p: p.year))
+                 .groupby("_k", as_index=False)[value_col].sum()
+                 .sort_values("_k"))
+        agg["X"] = agg["_k"].astype(str)
+    else:
+        agg = (df.groupby("_Mes", as_index=False)[value_col].sum()
+                 .sort_values("_Mes"))
+        agg["X"] = agg["_Mes"].apply(label_mes)
+
+    titulo_full = f"<b>{titulo}</b>"
+    if anual:
+        titulo_full += (
+            f"<br><sup>Agregado por año — {n_meses} meses en el periodo "
+            f"seleccionado</sup>"
+        )
+
+    fig = px.bar(
+        agg, x="X", y=value_col, text=value_col,
+        color_discrete_sequence=[color],
+    )
+    fig.update_traces(
+        texttemplate="$%{text:,.0f}", textposition="outside",
+        hovertemplate="<b>%{x}</b><br>$%{y:,.0f} MXN<extra></extra>",
+    )
+    fig.update_layout(
+        title=titulo_full,
+        template="plotly_white", height=380, showlegend=False,
+        xaxis_title="", yaxis_title="MXN",
+        margin=dict(t=80, b=40, l=60, r=40),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    )
+    fig.update_yaxes(tickformat=",.0f", tickprefix="$")
+    return fig
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  COMPRAS — 2: Curva de gasto semanal
 # ══════════════════════════════════════════════════════════════════════════════
