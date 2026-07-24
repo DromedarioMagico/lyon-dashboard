@@ -1,14 +1,19 @@
 CATALOGO_CATEGORIAS = [
     "Sustratos (Papel)",
     "Pre-prensa y Químicos",
-    "Encuadernación",
     "Insumos de Producción",
-    "Mantenimiento y Refacciones",
+    "Empaque y Embalaje",
     "Maquila",
+    "Mantenimiento y Refacciones",
     "Logística / Fletes",
     "Almacenaje y Renta",
+    "Energía y Servicios",
     "Limpieza y Sanitarios",
+    "TI y Software",
+    "Seguros e Impuestos/Derechos",
     "Servicios Profesionales",
+    "Otros gastos de operación",
+    "Proyectos Especiales",
     "Otros / Sin clasificar",
 ]
 
@@ -21,7 +26,6 @@ def aplicar_ancla(proveedor):
     p = str(proveedor).upper()
     if "DELMAN INTERNACIONAL" in p:                         return "Sustratos (Papel)"
     if "SANCHEZ S.A"          in p:                         return "Pre-prensa y Químicos"
-    if "LIBER ARTS"           in p:                         return "Encuadernación"
     if "JAQUELINA REYES"      in p or "GUTMAN BROS" in p:   return "Mantenimiento y Refacciones"
     if "VIGMAN GRAPHICS"      in p:                         return "Almacenaje y Renta"
     if "INFOVITA"             in p:                         return "Maquila"

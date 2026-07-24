@@ -31,12 +31,14 @@ _AMBER = "#E97132"
 _GRAY  = "#9E9E9E"
 
 COSTOS_DIRECTOS = [
-    "Sustratos (Papel)", "Pre-prensa y Químicos", "Encuadernación",
-    "Insumos de Producción", "Maquila",
+    "Sustratos (Papel)", "Pre-prensa y Químicos", "Insumos de Producción",
+    "Empaque y Embalaje", "Maquila",
 ]
 OVERHEAD = [
     "Mantenimiento y Refacciones", "Logística / Fletes", "Almacenaje y Renta",
-    "Limpieza y Sanitarios", "Servicios Profesionales", "Otros / Sin clasificar",
+    "Energía y Servicios", "Limpieza y Sanitarios", "TI y Software",
+    "Seguros e Impuestos/Derechos", "Servicios Profesionales",
+    "Otros gastos de operación", "Otros / Sin clasificar",
 ]
 
 
@@ -206,14 +208,16 @@ k6.markdown(
     _kpi("Costo Directo %", f"{pct_directo:.1f}%", _BLUE,
          desc="<b>Costos directos ÷ Ventas × 100</b><br>"
               "Porcentaje de las ventas destinado a materiales y producción directa.<br>"
-              "<b>Incluye:</b> Sustratos, Pre-prensa y Químicos, Encuadernación, Insumos de Producción, Maquila."),
+              "<b>Incluye:</b> Sustratos, Pre-prensa y Químicos, Insumos de Producción, Empaque y Embalaje, Maquila."),
     unsafe_allow_html=True,
 )
 k7.markdown(
     _kpi("Overhead %", f"{pct_overhead:.1f}%", _AMBER,
          desc="<b>Costos overhead ÷ Ventas × 100</b><br>"
               "Porcentaje de las ventas destinado a gastos operativos no productivos.<br>"
-              "<b>Incluye:</b> Mantenimiento, Logística / Fletes, Almacenaje y Renta, Limpieza, Servicios Profesionales, Otros."),
+              "<b>Incluye:</b> Mantenimiento, Logística / Fletes, Almacenaje y Renta, Energía y Servicios, "
+              "Limpieza, TI y Software, Seguros e Impuestos/Derechos, Servicios Profesionales, "
+              "Otros gastos de operación."),
     unsafe_allow_html=True,
 )
 

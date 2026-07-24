@@ -33,12 +33,14 @@ _AMBER = "#E97132"
 _GRAY  = "#9E9E9E"
 
 _COSTOS_DIRECTOS = [
-    "Sustratos (Papel)", "Pre-prensa y Químicos", "Encuadernación",
-    "Insumos de Producción", "Maquila",
+    "Sustratos (Papel)", "Pre-prensa y Químicos", "Insumos de Producción",
+    "Empaque y Embalaje", "Maquila",
 ]
 _OVERHEAD = [
     "Mantenimiento y Refacciones", "Logística / Fletes", "Almacenaje y Renta",
-    "Limpieza y Sanitarios", "Servicios Profesionales", "Otros / Sin clasificar",
+    "Energía y Servicios", "Limpieza y Sanitarios", "TI y Software",
+    "Seguros e Impuestos/Derechos", "Servicios Profesionales",
+    "Otros gastos de operación", "Otros / Sin clasificar",
 ]
 _CRITICAS     = {"Sustratos (Papel)", "Mantenimiento y Refacciones", "Pre-prensa y Químicos"}
 _SEMANA_ORDER = ["S1 (1–7)", "S2 (8–14)", "S3 (15–21)", "S4 (22+)"]
