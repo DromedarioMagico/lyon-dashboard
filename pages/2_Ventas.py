@@ -449,7 +449,10 @@ def _render_detalle_semana_ventas(df_full, df, semana_str):
     """Week-level drill-down for ventas: clients, sellers, and orders for a specific week."""
     # ── Parsear fechas (también para el label del breadcrumb) ────────────────
     try:
-        week_label = pd.Timestamp(str(semana_str)).normalize()
+        _ts = pd.Timestamp(str(semana_str))
+        if _ts.tz is not None:
+            _ts = _ts.tz_localize(None)
+        week_label = _ts.normalize()
         week_start = week_label - pd.Timedelta(days=6)
         week_end   = week_label
         _bc_label  = f"{week_start.strftime('%d %b')} – {week_end.strftime('%d %b %Y')}"
@@ -806,9 +809,30 @@ with st.container(border=True):
         plot_curva_semanal_ventas(df),
         use_container_width=True,
         on_select="rerun",
+        selection_mode="points",
         key="curva_semanal_ventas_chart",
     )
     st.caption("Haz clic en cualquier punto de la curva para ver el desglose detallado de esa semana.")
+
+    # Reliable fallback: pick the week from a selector.
+    _semanas_disp_v = (
+        df.set_index("Fecha").resample("W-MON")["Importe_MXN"].sum()
+    )
+    _semanas_disp_v = _semanas_disp_v[_semanas_disp_v > 0].index
+    if len(_semanas_disp_v) > 0:
+        _opts_v = {
+            f"{(w - pd.Timedelta(days=6)).strftime('%d %b')} – {w.strftime('%d %b %Y')}": w
+            for w in _semanas_disp_v
+        }
+        _pick_v = st.selectbox(
+            "…o selecciona la semana:", ["—"] + list(_opts_v.keys()),
+            key="vta_semana_pick",
+        )
+        if _pick_v != "—":
+            st.session_state["drill_semana_v"] = str(_opts_v[_pick_v])
+            st.session_state.pop("curva_semanal_ventas_chart", None)
+            st.rerun()
+
     if sem_v_event and sem_v_event.selection and sem_v_event.selection.points:
         pt        = sem_v_event.selection.points[0]
         clicked_x = pt.get("x", "") if isinstance(pt, dict) else getattr(pt, "x", "")

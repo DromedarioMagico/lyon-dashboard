@@ -75,7 +75,7 @@ def plot_curva_semanal_compras(df):
         mode="lines+markers", fill="tozeroy",
         line=dict(color="#1F4E79", width=2.5),
         fillcolor="rgba(31, 78, 121, 0.18)",
-        marker=dict(size=7, color="#1F4E79"),
+        marker=dict(size=11, color="#1F4E79"),
         hovertemplate="Semana del %{x|%d-%b-%Y}<br>Gasto: $%{y:,.0f} MXN<extra></extra>",
     ))
     fig.add_hline(
@@ -98,7 +98,6 @@ def plot_curva_semanal_compras(df):
         template="plotly_white", height=480, showlegend=False,
         margin=dict(t=100, b=60, l=70, r=40),
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        dragmode="select",
     )
     fig.update_yaxes(tickformat=",.0f", tickprefix="$")
     return fig
@@ -343,7 +342,7 @@ def plot_curva_semanal_ventas(df):
         mode="lines+markers", fill="tozeroy",
         line=dict(color="#548235", width=2.8),
         fillcolor="rgba(84, 130, 53, 0.18)",
-        marker=dict(size=8, color="#548235", line=dict(color="white", width=1.5)),
+        marker=dict(size=11, color="#548235", line=dict(color="white", width=1.5)),
         hovertemplate="Semana del %{x|%d-%b-%Y}<br>Ventas: $%{y:,.0f} MXN<extra></extra>",
         name="Ventas",
     ))
@@ -380,7 +379,6 @@ def plot_curva_semanal_ventas(df):
         template="plotly_white", height=480, showlegend=False,
         margin=dict(t=100, b=60, l=80, r=40),
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        dragmode="select",
     )
     fig.update_yaxes(tickformat=",.0f", tickprefix="$")
     return fig
