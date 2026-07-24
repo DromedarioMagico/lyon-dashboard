@@ -1,11 +1,15 @@
+from pathlib import Path
+
 import streamlit as st
 import pandas as pd
 
 from core.catalogos import CATALOGO_CATEGORIAS, ETIQ_PENDIENTE, COLOR_LYON, COLOR_VENTAS
 from core.database import (
     init_db, get_clasificaciones, upsert_clasificacion, log_evento,
-    get_vendedor_clientes, upsert_vendedor_cliente,
+    get_vendedor_clientes, upsert_vendedor_cliente, bulk_upsert_clasificaciones,
 )
+
+_CSV_CLASIF = Path(__file__).parent.parent / "proveedoreslyon_clasificados.csv"
 from core.etl_compras import aplicar_clasificaciones
 from core.etl_ventas import aplicar_vendedores
 from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav
@@ -70,6 +74,70 @@ tab_prov, tab_vend = st.tabs(["Proveedores", "Vendedores"])
 #  TAB PROVEEDORES
 # ════════════════════════════════════════════════════════════════════════════════
 with tab_prov:
+    # ── Importador masivo desde CSV ────────────────────────────────────────────
+    with st.expander("⚙️ Importar clasificaciones desde CSV (masivo)"):
+        if not _CSV_CLASIF.exists():
+            st.warning(
+                "No se encontró `proveedoreslyon_clasificados.csv` en la raíz del proyecto."
+            )
+        else:
+            st.caption(
+                "Lee **proveedoreslyon_clasificados.csv** y escribe las clasificaciones en la "
+                "base de datos usando el **nombre exacto del proveedor (columna «Proveedor "
+                "original»)** como llave — el mismo con el que la app cruza el SAE. "
+                "Sobrescribe lo que ya exista y es idempotente (puedes correrlo las veces "
+                "que quieras)."
+            )
+            if st.button("📥 Importar / actualizar ahora", type="primary", key="btn_import_csv"):
+                try:
+                    df_csv = pd.read_csv(_CSV_CLASIF, dtype=str, encoding="utf-8-sig").fillna("")
+                except UnicodeDecodeError:
+                    df_csv = pd.read_csv(_CSV_CLASIF, dtype=str, encoding="latin-1").fillna("")
+                except Exception as e:
+                    st.error(f"No se pudo leer el CSV: {e}")
+                    st.stop()
+
+                req = {"Proveedor original", "Clasificación"}
+                if not req.issubset(df_csv.columns):
+                    st.error(
+                        f"El CSV debe incluir las columnas {req}. "
+                        f"Detectadas: {list(df_csv.columns)}"
+                    )
+                    st.stop()
+
+                validas   = set(CATALOGO_CATEGORIAS)
+                filas     = []
+                omitidas  = 0
+                desconoc  = set()
+                for _, r in df_csv.iterrows():
+                    prov = str(r["Proveedor original"]).strip()
+                    cat  = str(r["Clasificación"]).strip()
+                    nota = str(r.get("Observaciones", "")).strip()
+                    if not prov or not cat:
+                        omitidas += 1
+                        continue
+                    if cat not in validas:
+                        omitidas += 1
+                        desconoc.add(cat)
+                        continue
+                    filas.append((prov, cat, nota, "csv"))
+
+                if not filas:
+                    st.warning("No hay filas válidas para importar.")
+                else:
+                    n = bulk_upsert_clasificaciones(filas)
+                    log_evento("import_csv", f"{n} clasificaciones importadas desde CSV")
+                    msg = f"✅ {n} proveedor(es) importado(s)/actualizado(s)."
+                    if omitidas:
+                        msg += f" {omitidas} fila(s) omitida(s)."
+                    st.success(msg)
+                    if desconoc:
+                        st.warning(
+                            "Categorías no reconocidas (omitidas): "
+                            + ", ".join(sorted(desconoc))
+                        )
+                    st.rerun()
+
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Proveedores totales",   f"{total_prov:,}")
     c2.metric("Clasificados",          f"{n_clasif:,}",     delta=f"{n_clasif/total_prov*100:.0f}%")

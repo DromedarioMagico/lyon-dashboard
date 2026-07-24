@@ -14,6 +14,7 @@ CATALOGO_CATEGORIAS = [
     "Servicios Profesionales",
     "Otros gastos de operación",
     "Proyectos Especiales",
+    "Persona física",
     "Otros / Sin clasificar",
 ]
 
