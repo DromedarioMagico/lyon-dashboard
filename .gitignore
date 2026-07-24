@@ -7,3 +7,7 @@ __pycache__/
 *.egg-info/
 dist/
 .streamlit/secrets.toml
+
+# Datos sensibles de proveedores (no subir al repo — se importan vía uploader)
+proveedoreslyon_clasificados.csv
+*proveedores*clasificados*.csv
