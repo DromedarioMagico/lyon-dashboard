@@ -27,11 +27,19 @@ def plot_donut_categorias(df, gasto_total, pct_cobertura, prov_pendientes):
     )
     fig = px.pie(
         gasto_cat, names="Categoria", values="Gasto_Total_MXN",
-        hole=0.55, color="Categoria", color_discrete_map=PALETA_CATEGORIAS,
+        hole=0.58, color="Categoria", color_discrete_map=PALETA_CATEGORIAS,
         title=f"<b>Distribución del Gasto por Categoría</b><br><sup>{subtit}</sup>",
     )
+    # Labels go INSIDE the slices (no leader-line spaghetti); Plotly auto-hides
+    # the ones that don't fit, so tiny slices stay clean. Names live in the
+    # legend; full detail on hover. Scales cleanly to many categories.
     fig.update_traces(
-        textposition="outside", textinfo="percent+label", sort=False,
+        textposition="inside",
+        textinfo="percent",
+        texttemplate="%{percent:.1%}",
+        insidetextorientation="horizontal",
+        sort=False,
+        marker=dict(line=dict(color="white", width=1.5)),
         hovertemplate=(
             "<b>%{label}</b><br>Gasto: $%{value:,.0f} MXN<br>"
             "Participación: %{percent}<extra></extra>"
@@ -47,8 +55,12 @@ def plot_donut_categorias(df, gasto_total, pct_cobertura, prov_pendientes):
             x=0.5, y=0.5, font=dict(size=18), showarrow=False,
         )],
         height=560,
-        margin=dict(t=120, b=40, l=40, r=40),
-        legend=dict(orientation="v", yanchor="middle", y=0.5),
+        margin=dict(t=120, b=40, l=40, r=220),
+        legend=dict(
+            orientation="v", yanchor="middle", y=0.5, x=1.02,
+            font=dict(size=11), itemclick=False, itemdoubleclick=False,
+        ),
+        uniformtext=dict(minsize=11, mode="hide"),
         paper_bgcolor='rgba(0,0,0,0)',
     )
     return fig
