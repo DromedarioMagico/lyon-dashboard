@@ -66,6 +66,50 @@ def plot_donut_categorias(df, gasto_total, pct_cobertura, prov_pendientes):
     return fig
 
 
+def plot_barras_categorias(df, gasto_total, pct_cobertura, prov_pendientes):
+    """Horizontal bar of spend by category — readable with many categories.
+
+    Sorted by spend (largest on top). Same signature as plot_donut_categorias
+    so it can be swapped in-place.
+    """
+    gasto_cat = (
+        df.groupby("Categoria", as_index=False)["Gasto_Total_MXN"].sum()
+          .sort_values("Gasto_Total_MXN", ascending=True)
+    )
+    total = gasto_cat["Gasto_Total_MXN"].sum()
+    gasto_cat["Pct"]   = gasto_cat["Gasto_Total_MXN"] / total * 100 if total else 0
+    gasto_cat["Color"] = gasto_cat["Categoria"].apply(
+        lambda c: PALETA_CATEGORIAS.get(c, "#9E9E9E")
+    )
+    subtit = (
+        f"Cobertura clasificada: <b>{pct_cobertura:.1f}%</b>  ·  "
+        f"{prov_pendientes} proveedor(es) aún pendientes  ·  "
+        f"Total: <b>${gasto_total/1e6:,.1f}M MXN</b>"
+    )
+    n = len(gasto_cat)
+    fig = go.Figure(go.Bar(
+        x=gasto_cat["Gasto_Total_MXN"], y=gasto_cat["Categoria"], orientation="h",
+        marker_color=gasto_cat["Color"].tolist(),
+        text=gasto_cat.apply(
+            lambda r: f"  ${r['Gasto_Total_MXN']/1e6:,.2f}M  ({r['Pct']:.1f}%)", axis=1
+        ),
+        textposition="outside",
+        cliponaxis=False,
+        hovertemplate="<b>%{y}</b><br>Gasto: $%{x:,.0f} MXN<extra></extra>",
+    ))
+    fig.update_layout(
+        title=f"<b>Distribución del Gasto por Categoría</b><br><sup>{subtit}</sup>",
+        template="plotly_white",
+        height=max(420, 46 * n + 130),
+        showlegend=False,
+        xaxis=dict(tickformat="$,.0f", title="Gasto (MXN)"),
+        yaxis=dict(title=""),
+        margin=dict(t=90, b=40, l=240, r=150),
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+    )
+    return fig
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  COMPRAS — 2: Curva de gasto semanal
 # ══════════════════════════════════════════════════════════════════════════════

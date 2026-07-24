@@ -13,7 +13,7 @@ from core.database import init_db
 from core.etl_compras import cargar_compras, aplicar_clasificaciones
 from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav, breadcrumb, render_periodo_filter, parse_semana_x
 from core.plots import (
-    plot_donut_categorias,
+    plot_barras_categorias,
     plot_curva_semanal_compras,
     plot_pareto_proveedores,
     plot_pendientes_clasificar,
@@ -1280,7 +1280,7 @@ st.divider()
 # ── Gráficas ──────────────────────────────────────────────────────────────────
 with st.container(border=True):
     st.plotly_chart(
-        plot_donut_categorias(df, gasto_total, pct_cobertura, prov_pendientes),
+        plot_barras_categorias(df, gasto_total, pct_cobertura, prov_pendientes),
         use_container_width=True,
     )
 
