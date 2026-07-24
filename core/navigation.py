@@ -1,7 +1,26 @@
 import os
+import pandas as pd
 import streamlit as st
 from core.database import get_stats
 from core.catalogos import label_mes
+
+
+def parse_semana_x(raw):
+    """
+    Parse a weekly-curve x value (from a Plotly click/selection or a selectbox)
+    into a normalized, tz-naive week-end Timestamp. Returns None if unparseable.
+
+    Handles both the ISO-string form ("2026-06-15 00:00:00") and the epoch-ms
+    integer form that Plotly can hand back for date axes.
+    """
+    try:
+        s = str(raw).strip()
+        ts = pd.Timestamp(int(s), unit="ms") if s.isdigit() else pd.Timestamp(s)
+        if ts.tz is not None:
+            ts = ts.tz_localize(None)
+        return ts.normalize()
+    except Exception:
+        return None
 
 _DIR  = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_DIR)

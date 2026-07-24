@@ -11,7 +11,7 @@ from core.catalogos import (
 )
 from core.database import init_db
 from core.etl_compras import cargar_compras, aplicar_clasificaciones
-from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav, breadcrumb, render_periodo_filter
+from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav, breadcrumb, render_periodo_filter, parse_semana_x
 from core.plots import (
     plot_donut_categorias,
     plot_curva_semanal_compras,
@@ -387,20 +387,17 @@ def _render_intra_cat(df_ctx, proveedor, cat_sel):
 def _render_detalle_semana(df_full, df_ctx, semana_str):
     """Week-level drill-down: who spent what, in which categories, which invoices."""
     # ── Parsear fechas (también para el label del breadcrumb) ────────────────
-    try:
-        _ts = pd.Timestamp(str(semana_str))
-        if _ts.tz is not None:
-            _ts = _ts.tz_localize(None)
-        week_label = _ts.normalize()
+    week_label = parse_semana_x(semana_str)
+    if week_label is not None:
         week_start = week_label - pd.Timedelta(days=6)
         week_end   = week_label
         _bc_label  = f"{week_start.strftime('%d %b')} – {week_end.strftime('%d %b %Y')}"
-    except Exception:
-        week_label = week_start = week_end = None
+    else:
+        week_start = week_end = None
         _bc_label  = str(semana_str)
 
     breadcrumb([
-        ("Compras", {"clear": ["drill_semana", "curva_semanal_chart", "sem_pareto_chart", "sem_heatmap_chart", "sem_facturas_table"]}, None),
+        ("Compras", {"clear": ["drill_semana", "curva_semanal_chart", "cmp_semana_pick", "sem_pareto_chart", "sem_heatmap_chart", "sem_facturas_table"]}, None),
         (_bc_label, None, None),
     ])
 
@@ -1309,7 +1306,7 @@ with st.container(border=True):
         selection_mode="points",
         key="curva_semanal_chart",
     )
-    st.caption("Haz clic en cualquier punto de la curva para ver el desglose detallado de esa semana.")
+    st.caption("Haz **un solo clic** (no doble) sobre un punto de la curva para ver el desglose de esa semana.")
 
     # Reliable fallback: pick the week from a selector (works even if the
     # click-on-point interaction misfires).
@@ -1335,11 +1332,18 @@ with st.container(border=True):
     if sem_event and sem_event.selection and sem_event.selection.points:
         pt        = sem_event.selection.points[0]
         clicked_x = pt.get("x", "") if isinstance(pt, dict) else getattr(pt, "x", "")
-        if clicked_x:
-            st.session_state["drill_semana"] = str(clicked_x)
-            st.session_state.pop("curva_semanal_chart", None)
-            st.toast("Cargando detalle de la semana…", icon="⏳")
-            st.rerun()
+        _wk = parse_semana_x(clicked_x) if clicked_x else None
+        if _wk is not None:
+            # Ignore clicks on empty valley weeks (markers sit at y=0)
+            _ws   = _wk - pd.Timedelta(days=6)
+            _dias = df["Fecha de documento"].dt.normalize()
+            if ((_dias >= _ws) & (_dias <= _wk)).any():
+                st.session_state["drill_semana"] = str(_wk)
+                st.session_state.pop("curva_semanal_chart", None)
+                st.toast("Cargando detalle de la semana…", icon="⏳")
+                st.rerun()
+            else:
+                st.toast("Esa semana no tiene facturas.", icon="⚠️")
 
 with st.container(border=True):
     st.plotly_chart(plot_pareto_proveedores(df, gasto_total), use_container_width=True)

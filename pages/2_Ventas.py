@@ -8,7 +8,7 @@ import streamlit as st
 from core.catalogos import COLOR_LYON, COLOR_VENTAS, label_mes
 from core.database import init_db
 from core.etl_ventas import cargar_ventas, aplicar_vendedores
-from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav, breadcrumb, render_periodo_filter
+from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav, breadcrumb, render_periodo_filter, parse_semana_x
 from core.plots import (
     plot_donut_clientes_ventas,
     plot_donut_resto_clientes,
@@ -448,20 +448,17 @@ if "df_ventas" not in st.session_state:
 def _render_detalle_semana_ventas(df_full, df, semana_str):
     """Week-level drill-down for ventas: clients, sellers, and orders for a specific week."""
     # ── Parsear fechas (también para el label del breadcrumb) ────────────────
-    try:
-        _ts = pd.Timestamp(str(semana_str))
-        if _ts.tz is not None:
-            _ts = _ts.tz_localize(None)
-        week_label = _ts.normalize()
+    week_label = parse_semana_x(semana_str)
+    if week_label is not None:
         week_start = week_label - pd.Timedelta(days=6)
         week_end   = week_label
         _bc_label  = f"{week_start.strftime('%d %b')} – {week_end.strftime('%d %b %Y')}"
-    except Exception:
-        week_label = week_start = week_end = None
+    else:
+        week_start = week_end = None
         _bc_label  = str(semana_str)
 
     breadcrumb([
-        ("Ventas", {"clear": ["drill_semana_v", "curva_semanal_ventas_chart", "sem_v_pareto_chart", "sem_v_vendedor_chart", "sem_v_pedidos_table"]}, None),
+        ("Ventas", {"clear": ["drill_semana_v", "curva_semanal_ventas_chart", "vta_semana_pick", "sem_v_pareto_chart", "sem_v_vendedor_chart", "sem_v_pedidos_table"]}, None),
         (_bc_label, None, None),
     ])
 
@@ -812,7 +809,7 @@ with st.container(border=True):
         selection_mode="points",
         key="curva_semanal_ventas_chart",
     )
-    st.caption("Haz clic en cualquier punto de la curva para ver el desglose detallado de esa semana.")
+    st.caption("Haz **un solo clic** (no doble) sobre un punto de la curva para ver el desglose de esa semana.")
 
     # Reliable fallback: pick the week from a selector.
     _semanas_disp_v = (
@@ -836,11 +833,18 @@ with st.container(border=True):
     if sem_v_event and sem_v_event.selection and sem_v_event.selection.points:
         pt        = sem_v_event.selection.points[0]
         clicked_x = pt.get("x", "") if isinstance(pt, dict) else getattr(pt, "x", "")
-        if clicked_x:
-            st.session_state["drill_semana_v"] = str(clicked_x)
-            st.session_state.pop("curva_semanal_ventas_chart", None)
-            st.toast("Cargando detalle de la semana…", icon="⏳")
-            st.rerun()
+        _wk = parse_semana_x(clicked_x) if clicked_x else None
+        if _wk is not None:
+            # Ignore clicks on empty valley weeks (markers sit at y=0)
+            _ws   = _wk - pd.Timedelta(days=6)
+            _dias = df["Fecha"].dt.normalize()
+            if ((_dias >= _ws) & (_dias <= _wk)).any():
+                st.session_state["drill_semana_v"] = str(_wk)
+                st.session_state.pop("curva_semanal_ventas_chart", None)
+                st.toast("Cargando detalle de la semana…", icon="⏳")
+                st.rerun()
+            else:
+                st.toast("Esa semana no tiene pedidos.", icon="⚠️")
 
 with st.container(border=True):
     st.plotly_chart(plot_pareto_clientes_ventas(df, venta_total), use_container_width=True)
