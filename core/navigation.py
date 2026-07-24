@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 from core.database import get_stats
+from core.catalogos import label_mes
 
 _DIR  = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_DIR)
@@ -52,7 +53,24 @@ def inject_custom_css():
         padding-top: 0.25rem !important;
         padding-bottom: 2rem !important;
     }
-    header[data-testid="stHeader"] { display: none !important; }
+    /* Strip the header chrome (Deploy menu + rainbow bar) but KEEP the header
+       as a layer so the collapsed-sidebar expand arrow stays reachable. */
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+    [data-testid="stToolbar"],
+    [data-testid="stDecoration"] { display: none !important; }
+    /* Always keep the expand-sidebar control visible & clickable */
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="stExpandSidebarButton"],
+    [data-testid="collapsedControl"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        z-index: 999990 !important;
+    }
     /* Hide anchor-link icons that appear next to headings */
     a.anchor-link, h1 a, h2 a, h3 a { display: none !important; }
     /* Remove gap between auto-nav and custom sidebar content */
@@ -202,42 +220,23 @@ def render_sidebar_status():
 
     if compras_loaded and ventas_loaded:
         st.sidebar.markdown("---")
+
+        efectivos, comunes = _resolver_periodos_reporte()
+        hay_conflicto = len(efectivos) >= 2
+
         if st.sidebar.button("📊 Generar reporte", use_container_width=True, type="primary"):
-            from datetime import datetime
-            from core.report import generate_report_html
-            _bar  = st.sidebar.progress(0, text="Preparando datos…")
-            _info = st.sidebar.empty()
-
-            def _on_progress(step: int, total: int, label: str) -> None:
-                _pct = step / total
-                _bar.progress(_pct, text=f"Renderizando {step}/{total}: {label}")
-
-            # Resolve active period filter: comparativa > intersection of cmp+vta > None
-            _sel_c = set(st.session_state.get("periodo_sel_cmp", []))
-            _sel_v = set(st.session_state.get("periodo_sel_vta", []))
-            _sel_cmn = st.session_state.get("periodo_sel_cmn")
-            if _sel_cmn:
-                _meses_filtrar = sorted(_sel_cmn)
-            elif _sel_c or _sel_v:
-                _inter = _sel_c & _sel_v if (_sel_c and _sel_v) else (_sel_c or _sel_v)
-                _meses_filtrar = sorted(_inter) if _inter else None
+            if hay_conflicto:
+                # Timelines differ → force the user to reconcile before generating
+                st.session_state["_report_reconcile"] = True
+                st.rerun()
             else:
-                _meses_filtrar = None
+                # 0 or 1 distinct effective selection → generate directly
+                _meses = sorted(next(iter(efectivos))) if efectivos else None
+                _generar_reporte(_meses)
 
-            _html = generate_report_html(
-                st.session_state.df_compras,
-                st.session_state.df_ventas,
-                st.session_state.get("df_compras_meta", {}),
-                st.session_state.get("df_ventas_meta",  {}),
-                on_progress=_on_progress,
-                meses_filtrar=_meses_filtrar,
-            )
-            _bar.empty()
-            _info.empty()
-            st.session_state["_report_html"]  = _html
-            st.session_state["_report_fname"] = (
-                f"reporte_lyon_ag_{datetime.now().strftime('%Y%m%d_%H%M')}.html"
-            )
+        if st.session_state.get("_report_reconcile"):
+            _render_reconciliacion(comunes)
+
         if st.session_state.get("_report_html"):
             st.sidebar.download_button(
                 label="⬇️ Descargar HTML",
@@ -246,6 +245,101 @@ def render_sidebar_status():
                 mime="text/html",
                 use_container_width=True,
             )
+
+
+def _resolver_periodos_reporte():
+    """
+    Compares the per-page period filters (Compras, Ventas, Comparativa) against
+    the report's common-month window.
+
+    Returns (efectivos, comunes):
+      efectivos : set of frozenset(Period) — distinct effective selections
+                  (each = that page's selection ∩ common months). If this has
+                  ≥2 members the timelines conflict.
+      comunes   : sorted list[Period] the report can show (avail_cmp ∩ avail_vta).
+    """
+    av_cmn = st.session_state.get("periodo_avail_cmn")
+    if av_cmn:
+        # Comparativa already computed the exact common-month window
+        comunes = sorted(av_cmn)
+    else:
+        av_c = set(st.session_state.get("periodo_avail_cmp", []))
+        av_v = set(st.session_state.get("periodo_avail_vta", []))
+        comunes = sorted(av_c & av_v) if (av_c and av_v) else sorted(av_c or av_v)
+    comunes_set = set(comunes)
+
+    efectivos = set()
+    for pref in ("cmp", "vta", "cmn"):
+        sel = st.session_state.get(f"periodo_sel_{pref}")
+        if sel is None:
+            continue  # page never visited → no intent expressed
+        eff = frozenset(sel) & frozenset(comunes_set) if comunes_set else frozenset(sel)
+        efectivos.add(eff)
+
+    return efectivos, comunes
+
+
+def _render_reconciliacion(comunes):
+    """Sidebar prompt shown when page filters disagree — user picks ONE period."""
+    st.sidebar.warning(
+        "⚠️ Tus filtros de período no coinciden entre Compras, Ventas y "
+        "Comparativa. Elige un período único para el reporte:"
+    )
+
+    etiquetas = {"cmp": "Compras", "vta": "Ventas", "cmn": "Comparativa"}
+    for pref, nombre in etiquetas.items():
+        sel = st.session_state.get(f"periodo_sel_{pref}")
+        if sel:
+            ss = sorted(sel)
+            st.sidebar.caption(f"• {nombre}: {label_mes(ss[0])} – {label_mes(ss[-1])}")
+
+    # Default the picker to the overlap of the conflicting selections, if any
+    sels = [set(st.session_state.get(f"periodo_sel_{p}", [])) for p in ("cmp", "vta", "cmn")]
+    sels = [s for s in sels if s]
+    overlap = set.intersection(*sels) if sels else set()
+    default = sorted(overlap & set(comunes)) if overlap else list(comunes)
+
+    lbl_to_period = {label_mes(m): m for m in comunes}
+    sel_labels = st.sidebar.multiselect(
+        "Período del reporte",
+        options=[label_mes(m) for m in comunes],
+        default=[label_mes(m) for m in default],
+        key="_report_unified",
+    )
+    unified = sorted(lbl_to_period[l] for l in sel_labels)
+
+    c1b, c2b = st.sidebar.columns(2)
+    if c1b.button("Generar", use_container_width=True, type="primary"):
+        st.session_state.pop("_report_reconcile", None)
+        _generar_reporte(unified if unified else None)
+    if c2b.button("Cancelar", use_container_width=True):
+        st.session_state.pop("_report_reconcile", None)
+        st.rerun()
+
+
+def _generar_reporte(meses_filtrar):
+    """Renders the HTML report for the given period and stores it in session_state."""
+    from datetime import datetime
+    from core.report import generate_report_html
+
+    _bar = st.sidebar.progress(0, text="Preparando datos…")
+
+    def _on_progress(step, total, label):
+        _bar.progress(step / total, text=f"Renderizando {step}/{total}: {label}")
+
+    _html = generate_report_html(
+        st.session_state.df_compras,
+        st.session_state.df_ventas,
+        st.session_state.get("df_compras_meta", {}),
+        st.session_state.get("df_ventas_meta",  {}),
+        on_progress=_on_progress,
+        meses_filtrar=meses_filtrar,
+    )
+    _bar.empty()
+    st.session_state["_report_html"]  = _html
+    st.session_state["_report_fname"] = (
+        f"reporte_lyon_ag_{datetime.now().strftime('%Y%m%d_%H%M')}.html"
+    )
 
 
 def _srch_label(s, max_len=28):
@@ -459,4 +553,5 @@ def render_periodo_filter(prefix, meses_disponibles):
 
     result = sorted(meses_sel)
     st.session_state[f"periodo_sel_{prefix}"] = result
+    st.session_state[f"periodo_avail_{prefix}"] = list(meses_disponibles)
     return result
