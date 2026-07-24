@@ -163,6 +163,15 @@ def upsert_clasificacion(proveedor, categoria, notas="", origen="usuario"):
         )
 
 
+def delete_clasificacion(proveedor):
+    """Remove a provider's classification (returns it to 'Pendiente clasificar')."""
+    with _conn() as con:
+        con.execute(
+            f"DELETE FROM proveedores_clasificacion WHERE proveedor_exacto_sae = {_PH}",
+            (proveedor,),
+        )
+
+
 def bulk_upsert_clasificaciones(rows):
     """
     Upsert many classifications over a SINGLE connection (one commit at the end).

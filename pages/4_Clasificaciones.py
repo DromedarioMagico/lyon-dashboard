@@ -3,8 +3,9 @@ import pandas as pd
 
 from core.catalogos import CATALOGO_CATEGORIAS, ETIQ_PENDIENTE, COLOR_LYON, COLOR_VENTAS
 from core.database import (
-    init_db, get_clasificaciones, upsert_clasificacion, log_evento,
-    get_vendedor_clientes, upsert_vendedor_cliente, bulk_upsert_clasificaciones,
+    init_db, get_clasificaciones, upsert_clasificacion, delete_clasificacion,
+    log_evento, get_vendedor_clientes, upsert_vendedor_cliente,
+    bulk_upsert_clasificaciones,
 )
 from core.etl_compras import aplicar_clasificaciones
 from core.etl_ventas import aplicar_vendedores
@@ -146,7 +147,7 @@ with tab_prov:
 
     tab_pend, tab_clasif = st.tabs([
         f"⚠️ Pendientes de clasificar ({n_pendientes})",
-        f"✅ Clasificados ({n_clasif})",
+        f"📝 Revisar y editar ({total_prov})",
     ])
 
     # ── Pendientes ─────────────────────────────────────────────────────────────
@@ -231,72 +232,101 @@ with tab_prov:
                         else:
                             st.warning("No seleccionaste ninguna categoría.")
 
-    # ── Clasificados ───────────────────────────────────────────────────────────
+    # ── Revisar y editar (tabla tipo Excel) ────────────────────────────────────
     with tab_clasif:
-        if n_clasif == 0:
-            st.info("Aún no hay proveedores clasificados.")
-        else:
-            clasif_df = prov_df[~pend_mask].copy().reset_index(drop=True)
+        st.caption(
+            "Filtra por categoría o nombre y **edita la categoría de cualquier proveedor "
+            "directamente en la tabla** (columna «Categoría»). Ordenada por impacto en gasto "
+            "(mayor a menor). Al terminar, presiona **Guardar cambios**."
+        )
 
+        opciones_cat = [ETIQ_PENDIENTE] + CATALOGO_CATEGORIAS
+
+        fc1, fc2, fc3 = st.columns([3, 3, 2])
+        with fc1:
+            cats_filtro = st.multiselect(
+                "Filtrar por categoría",
+                options=opciones_cat,
+                default=[],
+                placeholder="Todas las categorías",
+                key="edit_cat_filter",
+            )
+        with fc2:
             busqueda2 = st.text_input(
                 "Buscar proveedor", placeholder="Escribe parte del nombre…", key="busq_clasif"
             )
-            if busqueda2:
-                clasif_df = clasif_df[
-                    clasif_df["Proveedor"].str.contains(busqueda2, case=False, na=False)
-                ]
-
-            st.dataframe(
-                clasif_df[["Proveedor", "Categoria", "Origen", "Gasto_Total", "Facturas"]],
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "Proveedor":   st.column_config.TextColumn("Proveedor"),
-                    "Categoria":   st.column_config.TextColumn("Categoría"),
-                    "Origen":      st.column_config.TextColumn("Origen"),
-                    "Gasto_Total": st.column_config.NumberColumn("Gasto (MXN)", format="$%,.0f"),
-                    "Facturas":    st.column_config.NumberColumn("Facturas",    format="%d"),
-                },
-                height=min(600, 45 + 36 * len(clasif_df)),
+        with fc3:
+            top_sel = st.selectbox(
+                "Mostrar", ["Top 50", "Top 100", "Top 200", "Todos"], key="edit_topn"
             )
 
-            prov_lista_full = prov_df[~pend_mask]["Proveedor"].tolist()
+        tabla = prov_df.copy()
+        if cats_filtro:
+            tabla = tabla[tabla["Categoria"].isin(cats_filtro)]
+        if busqueda2:
+            tabla = tabla[tabla["Proveedor"].str.contains(busqueda2, case=False, na=False)]
+        tabla = tabla.sort_values("Gasto_Total", ascending=False).reset_index(drop=True)
 
-            st.divider()
-            st.markdown("**Reclasificar un proveedor**")
+        _limite = {"Top 50": 50, "Top 100": 100, "Top 200": 200}.get(top_sel, len(tabla))
+        tabla = tabla.head(_limite).reset_index(drop=True)
 
-            if not prov_lista_full:
-                st.caption("No hay proveedores clasificados aún.")
-            else:
-                col_sel, col_cat2, col_nota2, col_btn2 = st.columns([3, 2, 2, 1])
-                with col_sel:
-                    prov_sel = st.selectbox(
-                        "Proveedor", prov_lista_full, key="reclass_prov",
-                        label_visibility="collapsed",
-                    )
-                with col_cat2:
-                    cat_actual = (
-                        prov_df.loc[prov_df["Proveedor"] == prov_sel, "Categoria"].iloc[0]
-                        if prov_sel else _CATS[0]
-                    )
-                    idx_actual = _CATS.index(cat_actual) if cat_actual in _CATS else 0
-                    nueva_cat  = st.selectbox(
-                        "Nueva categoría", _CATS, index=idx_actual,
-                        key="reclass_cat", label_visibility="collapsed",
-                    )
-                with col_nota2:
-                    nueva_nota = st.text_input(
-                        "Nota", key="reclass_nota", label_visibility="collapsed",
-                    )
-                with col_btn2:
-                    st.markdown("<div style='padding-top:4px'>", unsafe_allow_html=True)
-                    if st.button("Guardar", key="btn_reclass", use_container_width=True):
-                        if nueva_cat != "— seleccionar —" and prov_sel:
-                            upsert_clasificacion(prov_sel, nueva_cat, notas=nueva_nota,
-                                                 origen="usuario")
-                            log_evento("reclasificacion", f"{prov_sel} → {nueva_cat}")
-                            st.success(f"✅ {prov_sel} reclasificado como **{nueva_cat}**.")
-                            st.rerun()
+        if len(tabla) == 0:
+            st.info("Sin proveedores para ese filtro.")
+        else:
+            st.caption(
+                f"Mostrando **{len(tabla)}** proveedor(es) · "
+                f"Gasto en pantalla: **${tabla['Gasto_Total'].sum()/1e6:,.2f}M MXN**"
+            )
+
+            edit_df = tabla[["Proveedor", "Categoria", "Gasto_Total", "Facturas", "Origen"]].copy()
+
+            # Editor key tied to the filter view so changing filters starts a clean grid
+            _editor_key = f"prov_editor_{top_sel}_{busqueda2}_{'-'.join(sorted(cats_filtro))}"
+
+            edited = st.data_editor(
+                edit_df,
+                use_container_width=True,
+                hide_index=True,
+                num_rows="fixed",
+                key=_editor_key,
+                column_config={
+                    "Proveedor":   st.column_config.TextColumn("Proveedor", disabled=True),
+                    "Categoria":   st.column_config.SelectboxColumn(
+                        "Categoría", options=opciones_cat, required=True, width="medium",
+                    ),
+                    "Gasto_Total": st.column_config.NumberColumn(
+                        "Gasto (MXN)", format="$%,.0f", disabled=True,
+                    ),
+                    "Facturas":    st.column_config.NumberColumn(
+                        "Facturas", format="%d", disabled=True,
+                    ),
+                    "Origen":      st.column_config.TextColumn("Origen", disabled=True),
+                },
+                height=min(650, 45 + 36 * len(edit_df)),
+            )
+
+            if st.button("💾 Guardar cambios", type="primary", key="btn_save_editor"):
+                cambios = 0
+                for i in range(len(edit_df)):
+                    prov    = edit_df.iloc[i]["Proveedor"]
+                    cat_old = edit_df.iloc[i]["Categoria"]
+                    cat_new = edited.iloc[i]["Categoria"]
+                    if cat_new == cat_old:
+                        continue
+                    if cat_new == ETIQ_PENDIENTE:
+                        delete_clasificacion(prov)
+                        log_evento("desclasificacion", f"{prov} → Pendiente")
+                    else:
+                        upsert_clasificacion(prov, cat_new, origen="usuario")
+                        log_evento("reclasificacion", f"{prov} → {cat_new}")
+                    cambios += 1
+
+                if cambios:
+                    st.session_state.pop(_editor_key, None)
+                    st.success(f"✅ {cambios} cambio(s) guardado(s).")
+                    st.rerun()
+                else:
+                    st.info("No hubo cambios que guardar.")
                     st.markdown("</div>", unsafe_allow_html=True)
 
 
