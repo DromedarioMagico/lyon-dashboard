@@ -104,6 +104,15 @@ def init_db():
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     tipo      TEXT NOT NULL,
                     detalle   TEXT
+                );
+                CREATE TABLE IF NOT EXISTS gastos_empresa (
+                    concepto           TEXT NOT NULL,
+                    periodo            TEXT NOT NULL,
+                    monto_mxn          NUMERIC NOT NULL DEFAULT 0,
+                    notas              TEXT DEFAULT '',
+                    fecha_creacion     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (concepto, periodo)
                 )
             """)
         else:
@@ -129,6 +138,15 @@ def init_db():
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     tipo      TEXT NOT NULL,
                     detalle   TEXT
+                );
+                CREATE TABLE IF NOT EXISTS gastos_empresa (
+                    concepto           TEXT NOT NULL,
+                    periodo            TEXT NOT NULL,
+                    monto_mxn          REAL NOT NULL DEFAULT 0,
+                    notas              TEXT DEFAULT '',
+                    fecha_creacion     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (concepto, periodo)
                 )
             """)
 
@@ -238,4 +256,85 @@ def log_evento(tipo, detalle=None):
         con.execute(
             f"INSERT INTO eventos (tipo, detalle) VALUES ({_PH}, {_PH})",
             (tipo, detalle),
+        )
+
+
+def get_conceptos_gastos_empresa():
+    """Distinct concepto names ever entered, across all years (sorted)."""
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT DISTINCT concepto FROM gastos_empresa ORDER BY concepto"
+        ).fetchall()
+    return [r[0] for r in rows]
+
+
+def get_años_gastos_empresa():
+    """Sorted list of distinct years that have at least one entry."""
+    with _conn() as con:
+        rows = con.execute("SELECT DISTINCT periodo FROM gastos_empresa").fetchall()
+    return sorted({int(r[0].split("-")[0]) for r in rows})
+
+
+def get_gastos_empresa_año(year):
+    """Returns {concepto: {mes_num(1-12): monto}} for the given year."""
+    with _conn() as con:
+        rows = con.execute(
+            f"SELECT concepto, periodo, monto_mxn FROM gastos_empresa "
+            f"WHERE periodo LIKE {_PH}",
+            (f"{year}-%",),
+        ).fetchall()
+    out = {}
+    for concepto, periodo, monto in rows:
+        mes = int(periodo.split("-")[1])
+        out.setdefault(concepto, {})[mes] = float(monto)
+    return out
+
+
+def get_gastos_empresa_totales_por_periodo(periodos):
+    """
+    Returns {periodo_str "YYYY-MM": total_monto} for the given iterable of
+    periodo strings — used to add "Gastos de Empresa" spend to charts/KPIs
+    filtered by the sidebar's period selection.
+    """
+    periodos = list(periodos)
+    if not periodos:
+        return {}
+    placeholders = ",".join([_PH] * len(periodos))
+    with _conn() as con:
+        rows = con.execute(
+            f"SELECT periodo, SUM(monto_mxn) FROM gastos_empresa "
+            f"WHERE periodo IN ({placeholders}) GROUP BY periodo",
+            tuple(periodos),
+        ).fetchall()
+    return {r[0]: float(r[1]) for r in rows}
+
+
+def bulk_upsert_gastos_empresa(rows):
+    """
+    Upsert many (concepto, periodo, monto, notas) rows over a single connection.
+    Always-overwrite semantics — safe to call with a full year's grid on every
+    save (idempotent), no diffing needed given the small data volume.
+    """
+    sql = f"""
+        INSERT INTO gastos_empresa (concepto, periodo, monto_mxn, notas, fecha_modificacion)
+        VALUES ({_PH}, {_PH}, {_PH}, {_PH}, CURRENT_TIMESTAMP)
+        ON CONFLICT(concepto, periodo) DO UPDATE SET
+            monto_mxn          = EXCLUDED.monto_mxn,
+            notas              = EXCLUDED.notas,
+            fecha_modificacion = CURRENT_TIMESTAMP
+    """
+    n = 0
+    with _conn() as con:
+        for concepto, periodo, monto, notas in rows:
+            con.execute(sql, (concepto, periodo, monto, notas))
+            n += 1
+    return n
+
+
+def delete_concepto_año(concepto, year):
+    """Removes all of a concept's entries for a given year (row removed from the grid)."""
+    with _conn() as con:
+        con.execute(
+            f"DELETE FROM gastos_empresa WHERE concepto = {_PH} AND periodo LIKE {_PH}",
+            (concepto, f"{year}-%"),
         )

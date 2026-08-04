@@ -191,6 +191,7 @@ def inject_custom_css():
     [data-testid="stSidebarNavItems"] li:nth-child(3) a::before { content: "bar_chart"; }
     [data-testid="stSidebarNavItems"] li:nth-child(4) a::before { content: "compare_arrows"; }
     [data-testid="stSidebarNavItems"] li:nth-child(5) a::before { content: "folder_open"; }
+    [data-testid="stSidebarNavItems"] li:nth-child(6) a::before { content: "payments"; }
     /* Rename "app" → "Home" by zeroing out its text and injecting via ::after */
     [data-testid="stSidebarNavItems"] li:nth-child(1) a > span,
     [data-testid="stSidebarNavItems"] li:nth-child(1) a > div {

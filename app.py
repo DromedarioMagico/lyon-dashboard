@@ -46,7 +46,7 @@ with col_c:
 st.markdown("---")
 st.subheader("Módulos")
 
-card1, card2, card3 = st.columns(3)
+card1, card2, card3, card4 = st.columns(4)
 
 with card1:
     with st.container(border=True):
@@ -86,3 +86,16 @@ with card3:
         )
         if st.button("Ir a Comparativa →", key="nav_comp", use_container_width=True, type="primary"):
             st.switch_page("pages/3_Comparativa.py")
+
+with card4:
+    with st.container(border=True):
+        st.markdown(
+            "<h3><span class='material-symbols-outlined' style='color:#7030A0'>payments</span>Gastos de Empresa</h3>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "Nómina y otros gastos que no pasan por una compra. "
+            "Captura manual, mes a mes o por año."
+        )
+        if st.button("Ir a Gastos →", key="nav_gastos", use_container_width=True, type="primary"):
+            st.switch_page("pages/5_Gastos_de_Empresa.py")
