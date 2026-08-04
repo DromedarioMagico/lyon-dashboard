@@ -10,6 +10,9 @@ from core.catalogos import (
     COLOR_LYON, COLOR_VENTAS, ETIQ_PENDIENTE,
     PALETA_CATEGORIAS, label_mes,
 )
+from core.database import (
+    get_gastos_empresa_totales_por_periodo, get_gastos_empresa_por_concepto,
+)
 from core.etl_compras import aplicar_clasificaciones
 from core.etl_ventas import aplicar_vendedores
 from core.plots import (
@@ -137,6 +140,20 @@ def generate_report_html(
     mes_df["Margen_pct"] = mes_df.apply(
         lambda r: r["Margen"] / r["Ventas"] * 100 if r["Ventas"] > 0 else 0, axis=1
     )
+
+    # Gastos de Empresa (nómina, etc. — no pasan por el SAE, captura manual)
+    _periodos_str        = [f"{p.year}-{p.month:02d}" for p in meses_comunes]
+    _ge_por_periodo       = get_gastos_empresa_totales_por_periodo(_periodos_str)
+    gasto_empresa_total   = sum(_ge_por_periodo.values())
+    mes_df["Gastos_Empresa"] = mes_df["_Mes"].apply(
+        lambda p: _ge_por_periodo.get(f"{p.year}-{p.month:02d}", 0.0)
+    )
+    mes_df["Margen_Operativo"] = mes_df["Margen"] - mes_df["Gastos_Empresa"]
+    mes_df["Margen_Op_pct"]    = mes_df.apply(
+        lambda r: r["Margen_Operativo"] / r["Ventas"] * 100 if r["Ventas"] > 0 else 0, axis=1
+    )
+    margen_operativo     = margen - gasto_empresa_total
+    margen_operativo_pct = margen_operativo / total_ventas * 100 if total_ventas > 0 else 0
 
     # Vendedores aggregation (shared by chart + table)
     vend = (
@@ -410,28 +427,50 @@ def generate_report_html(
         + _kpi("Ratio C/V",       f"{ratio_cv:.1f}%",    rcv_color, "Compras ÷ Ventas")
         + _kpi("Costo Directo %", f"{pct_dir:.1f}%",     _BLUE,     "% de ventas")
         + _kpi("Overhead %",      f"{pct_ovh:.1f}%",     _AMBER,    "% de ventas")
-        + '</div>'
     )
+    if gasto_empresa_total > 0:
+        mo_color  = _GREEN if margen_operativo >= 0 else _RED
+        kpi_html += (
+            _kpi("Margen Operativo",   _fmt_m(margen_operativo),      mo_color,
+                 "Margen Bruto − Gastos de Empresa")
+            + _kpi("Margen Operativo %", f"{margen_operativo_pct:.1f}%", mo_color)
+        )
+    kpi_html += '</div>'
 
     # Monthly summary table
-    resumen = mes_df[["Mes", "Ventas", "Compras", "Margen", "Margen_pct"]].copy()
+    _cols_num = ["Ventas", "Compras", "Margen", "Margen_pct"]
+    _fila_total = {
+        "Mes": "TOTAL", "Ventas": total_ventas,
+        "Compras": total_compras, "Margen": margen, "Margen_pct": margen_pct,
+    }
+    _th_extra = ""
+    if gasto_empresa_total > 0:
+        _cols_num += ["Gastos_Empresa", "Margen_Operativo", "Margen_Op_pct"]
+        _fila_total["Gastos_Empresa"]   = gasto_empresa_total
+        _fila_total["Margen_Operativo"] = margen_operativo
+        _fila_total["Margen_Op_pct"]    = margen_operativo_pct
+        _th_extra = (
+            "<th>Gastos Empresa</th><th>Margen Operativo</th><th>Margen Op. %</th>"
+        )
+
+    resumen = mes_df[["Mes"] + _cols_num].copy()
     resumen = pd.concat(
-        [resumen, pd.DataFrame([{
-            "Mes": "TOTAL", "Ventas": total_ventas,
-            "Compras": total_compras, "Margen": margen, "Margen_pct": margen_pct,
-        }])],
+        [resumen, pd.DataFrame([_fila_total])],
         ignore_index=True,
     )
 
+    _cols_pct = {"Margen_pct", "Margen_Op_pct"}
+
     def _cell(v, col):
-        if col in ("Margen", "Margen_pct") and isinstance(v, (int, float)):
+        if col in ("Margen", "Margen_pct", "Margen_Operativo", "Margen_Op_pct") \
+                and isinstance(v, (int, float)):
             s = ("color:#C00000;font-weight:700" if v < 0
                  else ("color:#548235;font-weight:700" if v > 0 else ""))
         else:
             s = ""
-        if col == "Margen_pct":
+        if col in _cols_pct:
             txt = f"{v:.1f}%" if isinstance(v, (int, float)) else str(v)
-        elif col in ("Ventas", "Compras", "Margen"):
+        elif col in ("Ventas", "Compras", "Margen", "Gastos_Empresa", "Margen_Operativo"):
             txt = f"${v:,.0f}" if isinstance(v, (int, float)) else str(v)
         else:
             txt = str(v)
@@ -441,14 +480,14 @@ def generate_report_html(
     for _, row in resumen.iterrows():
         cls = 'class="total-row"' if row["Mes"] == "TOTAL" else ""
         tbl_rows += f"<tr {cls}><td>{row['Mes']}</td>"
-        for col in ("Ventas", "Compras", "Margen", "Margen_pct"):
+        for col in _cols_num:
             tbl_rows += _cell(row[col], col)
         tbl_rows += "</tr>"
 
     monthly_table = (
         '<table class="rpt-table">'
         '<thead><tr><th>Mes</th><th>Ventas</th><th>Compras</th>'
-        '<th>Margen Bruto</th><th>Margen %</th></tr></thead>'
+        f'<th>Margen Bruto</th><th>Margen %</th>{_th_extra}</tr></thead>'
         f'<tbody>{tbl_rows}</tbody></table>'
     )
 
@@ -579,8 +618,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,Arial,sans-serif;
      margin:1.4rem 0 .7rem}
 .sub:first-child{margin-top:0}
 
-.kpi-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:.65rem;margin-bottom:1rem}
-@media(max-width:900px){.kpi-grid{grid-template-columns:repeat(4,1fr)}}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.65rem;margin-bottom:1rem}
 .kpi-card{background:#F8FAFC;border:1px solid #E1E7EC;border-radius:9px;
           padding:.8rem .9rem;text-align:center}
 .kpi-label{font-size:.63rem;font-weight:700;color:#6B7280;text-transform:uppercase;
@@ -621,12 +659,32 @@ body{font-family:'Segoe UI',system-ui,-apple-system,Arial,sans-serif;
             f'<div class="sec-body">{body}</div></div>'
         )
 
+    # Gastos de Empresa — desglose por concepto del período
+    _ge_desglose_html = ""
+    if gasto_empresa_total > 0:
+        _ge_por_concepto = get_gastos_empresa_por_concepto(_periodos_str)
+        _ge_rows = "".join(
+            f"<tr><td>{concepto}</td><td>${monto:,.0f}</td>"
+            f"<td>{monto/gasto_empresa_total*100:.1f}%</td></tr>"
+            for concepto, monto in _ge_por_concepto.items()
+        )
+        _ge_desglose_html = (
+            '<div class="sub">Gastos de Empresa del Período (captura manual)</div>'
+            '<table class="rpt-table">'
+            '<thead><tr><th>Concepto</th><th>Monto</th><th>% del Total</th></tr></thead>'
+            f'<tbody>{_ge_rows}'
+            f'<tr class="total-row"><td>TOTAL</td>'
+            f'<td>${gasto_empresa_total:,.0f}</td><td>100.0%</td></tr>'
+            '</tbody></table>'
+        )
+
     # Section 1 — Resumen Ejecutivo
     s1 = (
         '<div class="sub">Indicadores Clave del Período</div>'
         + kpi_html
         + '<div class="sub">Resumen Mensual</div>'
         + monthly_table
+        + _ge_desglose_html
     )
 
     # Section 2 — Compras

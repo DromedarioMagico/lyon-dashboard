@@ -309,6 +309,22 @@ def get_gastos_empresa_totales_por_periodo(periodos):
     return {r[0]: float(r[1]) for r in rows}
 
 
+def get_gastos_empresa_por_concepto(periodos):
+    """Returns {concepto: total_monto} for the given iterable of periodo strings."""
+    periodos = list(periodos)
+    if not periodos:
+        return {}
+    placeholders = ",".join([_PH] * len(periodos))
+    with _conn() as con:
+        rows = con.execute(
+            f"SELECT concepto, SUM(monto_mxn) FROM gastos_empresa "
+            f"WHERE periodo IN ({placeholders}) GROUP BY concepto "
+            f"ORDER BY SUM(monto_mxn) DESC",
+            tuple(periodos),
+        ).fetchall()
+    return {r[0]: float(r[1]) for r in rows}
+
+
 def bulk_upsert_gastos_empresa(rows):
     """
     Upsert many (concepto, periodo, monto, notas) rows over a single connection.

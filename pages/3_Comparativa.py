@@ -6,7 +6,7 @@ from core.catalogos import (
     COLOR_LYON, COLOR_VENTAS, PALETA_CATEGORIAS, ETIQ_PENDIENTE,
     CATALOGO_CATEGORIAS, label_mes,
 )
-from core.database import init_db
+from core.database import init_db, get_gastos_empresa_totales_por_periodo
 from core.etl_compras import aplicar_clasificaciones
 from core.etl_ventas import aplicar_vendedores
 from core.navigation import (
@@ -189,6 +189,22 @@ mes_df["Margen_pct"] = mes_df.apply(
     lambda r: r["Margen"] / r["Ventas"] * 100 if r["Ventas"] > 0 else 0, axis=1
 )
 
+# ── Gastos de Empresa (nómina, etc. — no pasan por el SAE) ─────────────────────
+_periodos_str      = [f"{p.year}-{p.month:02d}" for p in meses_sel]
+_ge_por_periodo    = get_gastos_empresa_totales_por_periodo(_periodos_str)
+gasto_empresa_total = sum(_ge_por_periodo.values())
+
+mes_df["Gastos_Empresa"] = mes_df["_Mes"].apply(
+    lambda p: _ge_por_periodo.get(f"{p.year}-{p.month:02d}", 0.0)
+)
+mes_df["Margen_Operativo"] = mes_df["Margen"] - mes_df["Gastos_Empresa"]
+mes_df["Margen_Op_pct"]    = mes_df.apply(
+    lambda r: r["Margen_Operativo"] / r["Ventas"] * 100 if r["Ventas"] > 0 else 0, axis=1
+)
+
+margen_operativo     = margen - gasto_empresa_total
+margen_operativo_pct = margen_operativo / total_ventas * 100 if total_ventas > 0 else 0
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  SECCIÓN 1 — KPIs GLOBALES
 # ══════════════════════════════════════════════════════════════════════════════
@@ -220,6 +236,16 @@ k7.markdown(
               "Otros gastos de operación."),
     unsafe_allow_html=True,
 )
+
+# ── Margen Operativo (incluye Gastos de Empresa) ────────────────────────────────
+if gasto_empresa_total > 0:
+    st.info(
+        f"💼 **Margen Operativo (incl. Gastos de Empresa):** "
+        f"${margen_operativo/1e6:,.2f}M MXN ({margen_operativo_pct:.1f}%) "
+        f"— Margen Bruto ${margen/1e6:,.2f}M − Gastos de Empresa "
+        f"${gasto_empresa_total/1e6:,.2f}M (nómina y otros, capturados manualmente) "
+        f"para el período seleccionado."
+    )
 
 st.divider()
 
@@ -634,12 +660,23 @@ st.divider()
 with st.container(border=True):
     st.markdown("##### Resumen mensual")
 
-    resumen = mes_df[["Mes", "Ventas", "Compras", "Margen", "Margen_pct"]].copy().reset_index(drop=True)
-    totales = pd.DataFrame([{
+    _cols_base = ["Mes", "Ventas", "Compras", "Margen", "Margen_pct"]
+    _fila_total = {
         "Mes": "TOTAL", "Ventas": total_ventas, "Compras": total_compras,
         "Margen": margen, "Margen_pct": margen_pct,
-    }])
+    }
+    if gasto_empresa_total > 0:
+        _cols_base += ["Gastos_Empresa", "Margen_Operativo", "Margen_Op_pct"]
+        _fila_total["Gastos_Empresa"]   = gasto_empresa_total
+        _fila_total["Margen_Operativo"] = margen_operativo
+        _fila_total["Margen_Op_pct"]    = margen_operativo_pct
+
+    resumen = mes_df[_cols_base].copy().reset_index(drop=True)
+    totales = pd.DataFrame([_fila_total])
     resumen_full = pd.concat([resumen, totales], ignore_index=True)
+
+    _cols_dinero = [c for c in _cols_base if c not in ("Mes", "Margen_pct", "Margen_Op_pct")]
+    _cols_pct    = [c for c in ("Margen_pct", "Margen_Op_pct") if c in _cols_base]
 
     def _color_margen(v):
         if isinstance(v, (int, float)):
@@ -649,17 +686,25 @@ with st.container(border=True):
                 return "color: #548235; font-weight: 700"
         return ""
 
-    fmt = {
-        "Ventas":     lambda v: f"${v:,.0f}" if isinstance(v, (int, float)) else str(v),
-        "Compras":    lambda v: f"${v:,.0f}" if isinstance(v, (int, float)) else str(v),
-        "Margen":     lambda v: f"${v:,.0f}" if isinstance(v, (int, float)) else str(v),
-        "Margen_pct": lambda v: f"{v:.1f}%"  if isinstance(v, (int, float)) else str(v),
-    }
+    fmt = {c: (lambda v: f"${v:,.0f}" if isinstance(v, (int, float)) else str(v))
+           for c in _cols_dinero}
+    fmt.update({c: (lambda v: f"{v:.1f}%" if isinstance(v, (int, float)) else str(v))
+                for c in _cols_pct})
 
+    _cols_color = [c for c in ("Margen", "Margen_pct", "Margen_Operativo", "Margen_Op_pct")
+                   if c in _cols_base]
     try:
-        styled = resumen_full.style.map(_color_margen, subset=["Margen", "Margen_pct"]).format(fmt)
+        styled = resumen_full.style.map(_color_margen, subset=_cols_color).format(fmt)
     except AttributeError:
-        styled = resumen_full.style.applymap(_color_margen, subset=["Margen", "Margen_pct"]).format(fmt)
+        styled = resumen_full.style.applymap(_color_margen, subset=_cols_color).format(fmt)
+
+    _renombres = {
+        "Margen_pct": "Margen %", "Gastos_Empresa": "Gastos Empresa",
+        "Margen_Operativo": "Margen Operativo", "Margen_Op_pct": "Margen Op. %",
+    }
+    styled = styled.relabel_index(
+        [_renombres.get(c, c) for c in resumen_full.columns], axis=1
+    )
 
     st.dataframe(
         styled,

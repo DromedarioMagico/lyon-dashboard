@@ -9,7 +9,7 @@ from core.catalogos import (
     CATALOGO_CATEGORIAS, ETIQ_PENDIENTE,
     COLOR_LYON, COLOR_VENTAS, PALETA_CATEGORIAS, label_mes,
 )
-from core.database import init_db
+from core.database import init_db, get_gastos_empresa_totales_por_periodo
 from core.etl_compras import cargar_compras, aplicar_clasificaciones
 from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav, breadcrumb, render_periodo_filter, parse_semana_x
 from core.plots import (
@@ -1275,12 +1275,44 @@ k4.markdown(_kpi("Ticket Mediano",   f"${ticket_mediano:,.0f}",    _GREEN), unsa
 k5.markdown(_kpi("Proveedores",      f"{prov_unicos:,}",           _BLUE),  unsafe_allow_html=True)
 k6.markdown(_kpi("Cobertura Categ.", f"{pct_cobertura:.1f}%",      _BLUE),  unsafe_allow_html=True)
 
+# ── Gastos de Empresa (nómina, etc. — no pasan por el SAE) ────────────────────
+_periodos_str    = [f"{p.year}-{p.month:02d}" for p in meses_sel]
+_ge_por_periodo  = get_gastos_empresa_totales_por_periodo(_periodos_str)
+gasto_empresa    = sum(_ge_por_periodo.values())
+gasto_con_empresa = gasto_total + gasto_empresa
+
+if gasto_empresa > 0:
+    st.info(
+        f"💼 **Con Gastos de Empresa:** ${gasto_con_empresa/1e6:,.2f}M MXN "
+        f"— Compras ${gasto_total/1e6:,.2f}M + Gastos de Empresa "
+        f"${gasto_empresa/1e6:,.2f}M (nómina y otros, capturados manualmente) "
+        f"para el período seleccionado."
+    )
+
 st.divider()
 
 # ── Gráficas ──────────────────────────────────────────────────────────────────
+incluir_ge = False
+if gasto_empresa > 0:
+    incluir_ge = st.checkbox(
+        "💼 Incluir Gastos de Empresa en la gráfica de categorías",
+        value=False, key="cmp_incluir_ge",
+    )
+
 with st.container(border=True):
+    if incluir_ge:
+        _df_chart = pd.concat(
+            [df, pd.DataFrame([{"Categoria": "Gastos de Empresa",
+                                 "Gasto_Total_MXN": gasto_empresa}])],
+            ignore_index=True,
+        )
+        _gasto_total_chart = gasto_con_empresa
+    else:
+        _df_chart = df
+        _gasto_total_chart = gasto_total
+
     st.plotly_chart(
-        plot_barras_categorias(df, gasto_total, pct_cobertura, prov_pendientes),
+        plot_barras_categorias(_df_chart, _gasto_total_chart, pct_cobertura, prov_pendientes),
         use_container_width=True,
     )
 

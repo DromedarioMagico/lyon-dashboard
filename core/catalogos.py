@@ -51,10 +51,11 @@ PALETA_PRINCIPAL = [
     "#2E75B6", "#BF8F00", "#A02B93", "#385723", "#806000",
 ]
 
-COLOR_PENDIENTE = "#9E9E9E"
-COLOR_VALIDADO  = "#DCE7F5"
-COLOR_ANCLA     = "#E6F2D8"
-COLOR_AMBAR     = "#FFF8E1"
+COLOR_PENDIENTE       = "#9E9E9E"
+COLOR_VALIDADO        = "#DCE7F5"
+COLOR_ANCLA           = "#E6F2D8"
+COLOR_AMBAR           = "#FFF8E1"
+COLOR_GASTOS_EMPRESA  = "#7030A0"
 
 # Paleta por categoría: índice estable
 PALETA_CATEGORIAS = {
@@ -63,6 +64,9 @@ PALETA_CATEGORIAS = {
 }
 PALETA_CATEGORIAS["Otros / Sin clasificar"] = COLOR_PENDIENTE
 PALETA_CATEGORIAS[ETIQ_PENDIENTE]           = COLOR_PENDIENTE
+# Display-only pseudo-categoría (no forma parte del catálogo de clasificación
+# cerrado) — usada al superponer Gastos de Empresa en gráficas de Compras.
+PALETA_CATEGORIAS["Gastos de Empresa"]      = COLOR_GASTOS_EMPRESA
 
 ESPANOL_MES = {
     1: "Ene", 2: "Feb", 3: "Mar",  4: "Abr",
