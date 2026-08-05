@@ -286,6 +286,13 @@ def _render_intra_cat(df_ctx, proveedor, cat_sel):
     if metrics["meses_totales"] >= 3:
         # Trend — ancho completo
         with st.container(border=True):
+            # Orden cronológico explícito: cada proveedor puede tener meses
+            # activos distintos, así que el eje categórico debe fijarse con
+            # la unión completa de meses — si no, Plotly ordena por "primera
+            # aparición" entre trazos y el eje sale desordenado.
+            _meses_orden_trend = sorted(monthly_all["_Mes"].unique())
+            _x_order_trend     = [label_mes(m) for m in _meses_orden_trend]
+
             fig_trend = go.Figure()
             n_peers = 0
             for prov_name, grp in monthly_all.groupby("Proveedor"):
@@ -315,7 +322,9 @@ def _render_intra_cat(df_ctx, proveedor, cat_sel):
                       f" · Gris = {n_peers} proveedor(es) de la misma categoría",
                 template="plotly_white", height=360,
                 legend=dict(orientation="h", y=1.08, x=0, xanchor="left"),
-                xaxis_title="", yaxis=dict(tickformat="$,.0f", title="MXN"),
+                xaxis=dict(type="category", categoryorder="array",
+                           categoryarray=_x_order_trend, title=""),
+                yaxis=dict(tickformat="$,.0f", title="MXN"),
                 margin=dict(t=70, b=40, l=70, r=20),
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             )
@@ -984,6 +993,10 @@ def _render_detalle_categoria(df_full, df_ctx, categoria):
         tick_monthly["ticket"] = tick_monthly["gasto"] / tick_monthly["n"]
 
         with st.container(border=True):
+            # Mismo fix de orden cronológico que en "Evolución Mensual del Gasto".
+            _meses_orden_tick = sorted(tick_monthly["_Mes"].unique())
+            _x_order_tick     = [label_mes(m) for m in _meses_orden_tick]
+
             fig_tick = go.Figure()
             for idx_t, prov in enumerate(top3_provs):
                 pdata = tick_monthly[tick_monthly["Proveedor"] == prov].sort_values("_Mes")
@@ -1001,9 +1014,10 @@ def _render_detalle_categoria(df_full, df_ctx, categoria):
             fig_tick.update_layout(
                 title="<b>Ticket Promedio Mensual — Top 3 Proveedores</b>",
                 template="plotly_white", height=340,
+                xaxis=dict(type="category", categoryorder="array",
+                           categoryarray=_x_order_tick),
                 legend=dict(orientation="h", y=1.08, x=0),
                 yaxis=dict(tickformat="$,.0f", title="MXN / factura"),
-                xaxis_title="",
                 margin=dict(t=80, b=50, l=80, r=20),
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             )
