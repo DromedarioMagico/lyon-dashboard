@@ -32,6 +32,13 @@ st.markdown(
     "<span class='material-symbols-outlined'>payments</span>Gastos de Empresa</h1>",
     unsafe_allow_html=True,
 )
+
+if "df_compras" not in st.session_state:
+    st.warning("Carga primero el archivo de Compras para gestionar Gastos de Empresa.")
+    if st.button("Ir a Compras", use_container_width=False):
+        st.switch_page("pages/1_Compras.py")
+    st.stop()
+
 st.caption(
     "Gastos que **no** pasan por una compra en el SAE — nómina operativa, nómina "
     "administrativa, impuestos, renta directa, etc. Captúralos aquí; se guardan de "
