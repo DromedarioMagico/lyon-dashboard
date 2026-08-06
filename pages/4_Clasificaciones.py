@@ -5,7 +5,7 @@ from core.catalogos import CATALOGO_CATEGORIAS, ETIQ_PENDIENTE, COLOR_LYON, COLO
 from core.database import (
     init_db, get_clasificaciones, upsert_clasificacion, delete_clasificacion,
     log_evento, get_vendedor_clientes, upsert_vendedor_cliente,
-    bulk_upsert_clasificaciones,
+    delete_vendedor_cliente, bulk_upsert_clasificaciones,
 )
 from core.etl_compras import aplicar_clasificaciones
 from core.etl_ventas import aplicar_vendedores
@@ -250,6 +250,102 @@ def _render_asignacion(clientes_df, opciones_vend, prefijo, mostrar_ultimo=False
                 st.warning("No seleccionaste ningún vendedor.")
 
 
+def _render_tabla_vendedores(base_df, prefijo, opciones_vend_dd):
+    """
+    Excel-like editable client→vendor table: filter by vendor/name, Top-N
+    selector, inline vendor reassignment via dropdown, and save. Covers ALL
+    clients in `base_df` regardless of current assignment status.
+    `opciones_vend_dd` = ["Sin asignar", <vendedor...>] — dropdown-only, no
+    free-text entry (use the "Pendientes" tab to introduce a brand-new
+    vendor name for the first time).
+    `base_df` must include: Cliente_Nombre, Vendedor, Ventas, Pedidos, Ultimo_Pedido.
+    """
+    fc1, fc2, fc3 = st.columns([3, 3, 2])
+    with fc1:
+        vend_filtro = st.multiselect(
+            "Filtrar por vendedor", options=opciones_vend_dd, default=[],
+            placeholder="Todos los vendedores", key=f"{prefijo}_vend_filter",
+        )
+    with fc2:
+        busqueda = st.text_input(
+            "Buscar cliente", placeholder="Escribe parte del nombre…",
+            key=f"{prefijo}_busq",
+        )
+    with fc3:
+        top_sel = st.selectbox(
+            "Mostrar",
+            ["Top 50", "Top 100", "Top 200", "Todas (lista completa)"],
+            key=f"{prefijo}_topn",
+        )
+
+    tabla = base_df.copy()
+    if vend_filtro:
+        tabla = tabla[tabla["Vendedor"].isin(vend_filtro)]
+    if busqueda:
+        tabla = tabla[tabla["Cliente_Nombre"].str.contains(busqueda, case=False, na=False)]
+    tabla = tabla.sort_values("Ventas", ascending=False).reset_index(drop=True)
+
+    _limite = {"Top 50": 50, "Top 100": 100, "Top 200": 200}.get(top_sel, len(tabla))
+    tabla = tabla.head(_limite).reset_index(drop=True)
+
+    if len(tabla) == 0:
+        st.info("Sin clientes para ese filtro.")
+        return
+
+    st.caption(
+        f"Mostrando **{len(tabla)}** cliente(s) · "
+        f"Ventas en pantalla: **${tabla['Ventas'].sum()/1e6:,.2f}M MXN**"
+    )
+
+    tabla["Ultima"] = tabla["Ultimo_Pedido"].dt.strftime("%b %Y")
+    edit_df = tabla[["Cliente_Nombre", "Vendedor", "Ventas", "Pedidos", "Ultima"]].copy()
+
+    _editor_key = f"{prefijo}_editor_{top_sel}_{busqueda}_{'-'.join(sorted(vend_filtro))}"
+
+    edited = st.data_editor(
+        edit_df,
+        use_container_width=True,
+        hide_index=True,
+        num_rows="fixed",
+        key=_editor_key,
+        column_config={
+            "Cliente_Nombre": st.column_config.TextColumn("Cliente", disabled=True),
+            "Vendedor": st.column_config.SelectboxColumn(
+                "Vendedor", options=opciones_vend_dd, required=True, width="medium",
+            ),
+            "Ventas": st.column_config.NumberColumn(
+                "Ventas (MXN)", format="$%,.0f", disabled=True,
+            ),
+            "Pedidos": st.column_config.NumberColumn("Pedidos", format="%d", disabled=True),
+            "Ultima": st.column_config.TextColumn("Último pedido", disabled=True),
+        },
+        height=min(650, 45 + 36 * len(edit_df)),
+    )
+
+    if st.button("💾 Guardar cambios", type="primary", key=f"{prefijo}_save"):
+        cambios = 0
+        for i in range(len(edit_df)):
+            cliente  = edit_df.iloc[i]["Cliente_Nombre"]
+            vend_old = edit_df.iloc[i]["Vendedor"]
+            vend_new = edited.iloc[i]["Vendedor"]
+            if vend_new == vend_old:
+                continue
+            if vend_new == "Sin asignar":
+                delete_vendedor_cliente(cliente)
+                log_evento("desasignacion_vendedor", f"{cliente} → Sin asignar")
+            else:
+                upsert_vendedor_cliente(cliente, vend_new, origen="usuario")
+                log_evento("reasignacion_vendedor", f"{cliente} → {vend_new}")
+            cambios += 1
+
+        if cambios:
+            st.session_state.pop(_editor_key, None)
+            st.success(f"✅ {cambios} cambio(s) guardado(s).")
+            st.rerun()
+        else:
+            st.info("No hubo cambios que guardar.")
+
+
 # ── Outer tabs ────────────────────────────────────────────────────────────────
 tab_prov, tab_vend = st.tabs(["Proveedores", "Vendedores"])
 
@@ -459,13 +555,13 @@ with tab_vend:
         if st.button("Ir a Ventas", key="btn_go_ventas"):
             st.switch_page("pages/2_Ventas.py")
     else:
-        df_v          = aplicar_vendedores(st.session_state.df_ventas.copy())
-        sin_vend_mask = df_v["Vendedor"] == "Sin asignar"
+        df_v = aplicar_vendedores(st.session_state.df_ventas.copy())
 
-        clientes_sin_df = (
-            df_v[sin_vend_mask]
-            .groupby("Cliente_Nombre", as_index=False)
+        # ── Todos los clientes (asignados o no), con su último pedido ──────────
+        clientes_full_df = (
+            df_v.groupby("Cliente_Nombre", as_index=False)
             .agg(
+                Vendedor=("Vendedor", "first"),
                 Ventas=("Importe_MXN", "sum"),
                 Pedidos=("Importe_MXN", "count"),
                 Ultimo_Pedido=("Fecha", "max"),
@@ -473,27 +569,27 @@ with tab_vend:
             .sort_values("Ventas", ascending=False)
         )
 
-        # ── Split 2020+ vs histórico (por fecha del último pedido) ─────────────
-        clientes_sin_rec  = clientes_sin_df[clientes_sin_df["Ultimo_Pedido"] >= _CORTE_HIST].copy()
-        clientes_sin_hist = clientes_sin_df[clientes_sin_df["Ultimo_Pedido"] <  _CORTE_HIST].copy()
+        # ── Split 2020+ vs histórico (por fecha del último pedido) — TODOS,
+        #    sin importar si ya tienen vendedor asignado ───────────────────────
+        clientes_rec  = clientes_full_df[clientes_full_df["Ultimo_Pedido"] >= _CORTE_HIST].copy()
+        clientes_hist = clientes_full_df[clientes_full_df["Ultimo_Pedido"] <  _CORTE_HIST].copy()
 
-        # Clientes con actividad 2020+ (para las métricas)
-        _cli_ultimo   = df_v.groupby("Cliente_Nombre")["Fecha"].max()
-        _clientes_rec = _cli_ultimo[_cli_ultimo >= _CORTE_HIST].index
+        clientes_sin_rec = clientes_rec[clientes_rec["Vendedor"] == "Sin asignar"].copy()
 
         asig_db        = get_vendedor_clientes()   # {cliente: vendedor} from DB
-        total_clientes = len(_clientes_rec)        # solo 2020+
+        total_clientes = len(clientes_rec)          # solo 2020+
         n_sin          = len(clientes_sin_rec)
         n_asig         = total_clientes - n_sin
         pct_asig       = n_asig / total_clientes * 100 if total_clientes > 0 else 0
         n_en_db        = len(asig_db)
-        n_sin_hist     = len(clientes_sin_hist)
+        n_hist_v       = len(clientes_hist)
 
-        # Opciones de vendedor (compartidas por las pestañas de asignación)
+        # Opciones de vendedor
         vendedores_conocidos = sorted(
-            df_v[~sin_vend_mask]["Vendedor"].dropna().unique().tolist()
+            df_v[df_v["Vendedor"] != "Sin asignar"]["Vendedor"].dropna().unique().tolist()
         )
-        opciones_vend = ["— seleccionar —"] + vendedores_conocidos + ["✏️ Escribir nombre…"]
+        opciones_vend    = ["— seleccionar —"] + vendedores_conocidos + ["✏️ Escribir nombre…"]
+        opciones_vend_dd = ["Sin asignar"] + vendedores_conocidos
 
         # Summary
         c1, c2, c3, c4 = st.columns(4)
@@ -505,128 +601,41 @@ with tab_vend:
         c4.metric("Asignados en esta app", f"{n_en_db:,}")
         st.caption(
             f"Métricas sobre clientes con pedidos **2020 en adelante**. "
-            f"Hay **{n_sin_hist}** clientes sin asignar cuyo último pedido es "
-            f"anterior a 2020 en la pestaña «🕰 Histórico»."
+            f"Hay **{n_hist_v}** clientes (asignados o no) cuyo último pedido "
+            f"es anterior a 2020 en la pestaña «🕰 Histórico»."
         )
 
         st.divider()
 
-        tab_sin, tab_asig, tab_hist_v = st.tabs([
-            f"⚠️ Sin asignar ({n_sin})",
-            f"✅ Asignados en app ({n_en_db})",
-            f"🕰 Histórico pre-2020 ({n_sin_hist})",
+        tab_todos, tab_pend_v, tab_hist_v = st.tabs([
+            f"👥 Todos ({total_clientes})",
+            f"⚠️ Pendientes de clasificar ({n_sin})",
+            f"🕰 Histórico pre-2020 ({n_hist_v})",
         ])
 
-        # ── Sin asignar (2020+) ──────────────────────────────────────────────────
-        with tab_sin:
+        # ── Todos (2020+, asignados o no) ───────────────────────────────────────
+        with tab_todos:
+            st.caption(
+                "Todos los clientes con actividad **2020 en adelante**, asignados o "
+                "no. Reasigna directamente en la tabla (columna «Vendedor»)."
+            )
+            _render_tabla_vendedores(clientes_rec, "vtodos", opciones_vend_dd)
+
+        # ── Pendientes de clasificar (2020+, sin asignar) ───────────────────────
+        with tab_pend_v:
             if n_sin == 0:
                 st.success("¡Todos los clientes 2020+ tienen vendedor asignado!")
             else:
                 _render_asignacion(clientes_sin_rec, opciones_vend, "vsin")
 
-        # ── Histórico pre-2020 ───────────────────────────────────────────────────
+        # ── Histórico pre-2020 (todos, asignados o no) ──────────────────────────
         with tab_hist_v:
             st.caption(
-                "Clientes sin vendedor cuyo **último pedido es anterior a 2020**. "
-                "Suelen ser cuentas antiguas de las que ya no se sabe quién las "
-                "manejaba; se apartan aquí, pero puedes asignarlas igual si lo sabes. "
-                "Cada tarjeta indica la fecha del último pedido."
+                "Clientes cuyo **último pedido es anterior a 2020** — asignados o "
+                "no. Se apartan aquí para no estorbar el flujo normal, pero puedes "
+                "reasignarlos igual en la tabla."
             )
-            if n_sin_hist == 0:
-                st.info("No hay clientes históricos sin asignar.")
+            if n_hist_v == 0:
+                st.info("No hay clientes históricos (todos tienen actividad 2020+).")
             else:
-                _render_asignacion(clientes_sin_hist, opciones_vend, "vhist",
-                                   mostrar_ultimo=True)
-
-        # ── Asignados en app ───────────────────────────────────────────────────
-        with tab_asig:
-            if n_en_db == 0:
-                st.info("Aún no has asignado vendedores desde esta app.")
-            else:
-                asig_tbl = pd.DataFrame(
-                    [{"Cliente": k, "Vendedor": v} for k, v in asig_db.items()]
-                )
-                cli_stats = (
-                    df_v.groupby("Cliente_Nombre", as_index=False)
-                    .agg(Ventas=("Importe_MXN", "sum"), Pedidos=("Importe_MXN", "count"))
-                )
-                asig_tbl = asig_tbl.merge(
-                    cli_stats.rename(columns={"Cliente_Nombre": "Cliente"}),
-                    on="Cliente", how="left",
-                )
-                asig_tbl["Ventas"]  = asig_tbl["Ventas"].fillna(0)
-                asig_tbl["Pedidos"] = asig_tbl["Pedidos"].fillna(0).astype(int)
-                asig_tbl = asig_tbl.sort_values("Ventas", ascending=False).reset_index(drop=True)
-
-                busq_asig = st.text_input(
-                    "Buscar cliente",
-                    placeholder="Escribe parte del nombre…",
-                    key="busq_asig",
-                )
-                disp_tbl = asig_tbl.copy()
-                if busq_asig:
-                    disp_tbl = disp_tbl[
-                        disp_tbl["Cliente"].str.contains(busq_asig, case=False, na=False)
-                    ]
-
-                st.dataframe(
-                    disp_tbl[["Cliente", "Vendedor", "Ventas", "Pedidos"]],
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        "Cliente":  st.column_config.TextColumn("Cliente"),
-                        "Vendedor": st.column_config.TextColumn("Vendedor"),
-                        "Ventas":   st.column_config.NumberColumn("Ventas (MXN)", format="$%,.0f"),
-                        "Pedidos":  st.column_config.NumberColumn("Pedidos",      format="%d"),
-                    },
-                    height=min(600, 45 + 36 * len(disp_tbl)),
-                )
-
-                st.divider()
-                st.markdown("**Reasignar un cliente**")
-
-                vendedores_reasig = sorted(
-                    df_v[df_v["Vendedor"] != "Sin asignar"]["Vendedor"].dropna().unique().tolist()
-                )
-                opciones_reasig = (
-                    ["— seleccionar —"] + vendedores_reasig + ["✏️ Escribir nombre…"]
-                )
-                all_clientes_asig = asig_tbl["Cliente"].tolist()
-
-                col_cli, col_vv, col_btnr = st.columns([3, 3, 1])
-                with col_cli:
-                    cli_reasig = st.selectbox(
-                        "Cliente", all_clientes_asig, key="reasig_cli",
-                        label_visibility="collapsed",
-                    )
-                with col_vv:
-                    actual_vend = asig_db.get(cli_reasig, "— seleccionar —")
-                    idx_act = (opciones_reasig.index(actual_vend)
-                               if actual_vend in opciones_reasig else 0)
-                    nuevo_vend = st.selectbox(
-                        "Nuevo vendedor", opciones_reasig, index=idx_act,
-                        key="reasig_vend", label_visibility="collapsed",
-                    )
-                    if nuevo_vend == "✏️ Escribir nombre…":
-                        nuevo_vend_custom = st.text_input(
-                            "Nombre", key="reasig_custom",
-                            placeholder="Nombre completo…",
-                            label_visibility="collapsed",
-                        )
-                    else:
-                        nuevo_vend_custom = ""
-                with col_btnr:
-                    st.markdown("<div style='padding-top:4px'>", unsafe_allow_html=True)
-                    if st.button("Guardar", key="btn_reasig", use_container_width=True):
-                        vend_save = (
-                            nuevo_vend_custom.strip()
-                            if nuevo_vend == "✏️ Escribir nombre…"
-                            else nuevo_vend
-                        )
-                        if vend_save and vend_save != "— seleccionar —" and cli_reasig:
-                            upsert_vendedor_cliente(cli_reasig, vend_save)
-                            log_evento("reasignacion_vendedor",
-                                       f"{cli_reasig} → {vend_save}")
-                            st.success(f"✅ {cli_reasig} reasignado a **{vend_save}**.")
-                            st.rerun()
-                    st.markdown("</div>", unsafe_allow_html=True)
+                _render_tabla_vendedores(clientes_hist, "vhistall", opciones_vend_dd)

@@ -251,6 +251,15 @@ def upsert_vendedor_cliente(cliente, vendedor, origen="usuario"):
         )
 
 
+def delete_vendedor_cliente(cliente):
+    """Removes a client's vendor assignment (returns it to 'Sin asignar')."""
+    with _conn() as con:
+        con.execute(
+            f"DELETE FROM vendedor_cliente WHERE cliente_exacto_sae = {_PH}",
+            (cliente,),
+        )
+
+
 def log_evento(tipo, detalle=None):
     with _conn() as con:
         con.execute(

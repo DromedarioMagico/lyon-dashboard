@@ -431,7 +431,8 @@ def render_sidebar_search():
 
     # ── Clientes ──────────────────────────────────────────────────────────────
     if ventas_loaded:
-        df_v = st.session_state.df_ventas
+        from core.etl_ventas import aplicar_vendedores
+        df_v = aplicar_vendedores(st.session_state.df_ventas)
         ranked_c = (df_v.groupby("Cliente_Nombre")["Importe_MXN"]
                        .sum().sort_values(ascending=False).index.tolist())
         hits_c = [c for c in ranked_c if q_up in c.upper()][:5]
