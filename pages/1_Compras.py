@@ -20,7 +20,6 @@ from core.plots import (
     plot_curva_semanal_compras,
     plot_dona_gastos_empresa,
     plot_pareto_proveedores,
-    plot_pendientes_clasificar,
 )
 
 st.set_page_config(
@@ -1317,23 +1316,10 @@ st.divider()
 
 # ── Gráficas ──────────────────────────────────────────────────────────────────
 with st.container(border=True):
-    if gasto_empresa > 0:
-        col_cat, col_ge = st.columns([3, 2])
-        with col_cat:
-            st.plotly_chart(
-                plot_barras_categorias(df, gasto_total, pct_cobertura, prov_pendientes),
-                use_container_width=True,
-            )
-        with col_ge:
-            st.plotly_chart(
-                plot_dona_gastos_empresa(_ge_por_concepto, gasto_empresa),
-                use_container_width=True,
-            )
-    else:
-        st.plotly_chart(
-            plot_barras_categorias(df, gasto_total, pct_cobertura, prov_pendientes),
-            use_container_width=True,
-        )
+    st.plotly_chart(
+        plot_barras_categorias(df, gasto_total, pct_cobertura, prov_pendientes),
+        use_container_width=True,
+    )
 
     # Clickable pills — nav mechanism
     cats_presentes = [c for c in CATALOGO_CATEGORIAS if c in df["Categoria"].values]
@@ -1348,6 +1334,13 @@ with st.container(border=True):
                     if st.button(cat, key=f"pill_cat_{cat}", use_container_width=True):
                         st.session_state["drill_categoria"] = cat
                         st.rerun()
+
+if gasto_empresa > 0:
+    with st.container(border=True):
+        st.plotly_chart(
+            plot_dona_gastos_empresa(_ge_por_concepto, gasto_empresa),
+            use_container_width=True,
+        )
 
 with st.container(border=True):
     sem_event = st.plotly_chart(
@@ -1398,11 +1391,6 @@ with st.container(border=True):
 
 with st.container(border=True):
     st.plotly_chart(plot_pareto_proveedores(df, gasto_total), use_container_width=True)
-
-fig_pend = plot_pendientes_clasificar(df, pct_cobertura)
-if fig_pend is not None:
-    with st.container(border=True):
-        st.plotly_chart(fig_pend, use_container_width=True)
 
 # ── Compras por Categoría — ANCHO COMPLETO ───────────────────────────────────
 st.divider()

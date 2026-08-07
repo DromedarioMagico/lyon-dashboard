@@ -149,14 +149,14 @@ def plot_dona_gastos_empresa(ge_por_concepto, total):
     fig.update_layout(
         title="<b>Gastos de Empresa — Composición</b>",
         template="plotly_white",
-        height=420,
+        height=560,
         annotations=[dict(
-            text=f"<b>${total/1e6:,.1f}M</b><br><span style='font-size:11px'>MXN total</span>",
-            x=0.5, y=0.5, font=dict(size=15), showarrow=False,
+            text=f"<b>${total/1e6:,.1f}M</b><br><span style='font-size:13px'>MXN total</span>",
+            x=0.5, y=0.5, font=dict(size=19), showarrow=False,
         )],
-        legend=dict(orientation="v", yanchor="middle", y=0.5, font=dict(size=11)),
-        margin=dict(t=60, b=20, l=20, r=20),
-        uniformtext=dict(minsize=10, mode="hide"),
+        legend=dict(orientation="v", yanchor="middle", y=0.5, font=dict(size=13)),
+        margin=dict(t=70, b=30, l=30, r=30),
+        uniformtext=dict(minsize=11, mode="hide"),
         paper_bgcolor='rgba(0,0,0,0)',
     )
     return fig
