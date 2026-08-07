@@ -7,7 +7,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from core.catalogos import (
-    COLOR_LYON, COLOR_VENTAS, ETIQ_PENDIENTE,
+    COLOR_LYON, COLOR_VENTAS, COLOR_GASTOS_EMPRESA, ETIQ_PENDIENTE,
     PALETA_CATEGORIAS, label_mes,
 )
 from core.database import (
@@ -27,6 +27,8 @@ from core.plots import (
     plot_pareto_clientes_ventas,
     plot_ventas_por_vendedor,
     plot_heatmap_cliente_mes,
+    plot_barras_gastos_empresa,
+    plot_waterfall_margen,
 )
 
 _BLUE  = COLOR_LYON
@@ -145,6 +147,9 @@ def generate_report_html(
     _periodos_str        = [f"{p.year}-{p.month:02d}" for p in meses_comunes]
     _ge_por_periodo       = get_gastos_empresa_totales_por_periodo(_periodos_str)
     gasto_empresa_total   = sum(_ge_por_periodo.values())
+    _ge_por_concepto      = (
+        get_gastos_empresa_por_concepto(_periodos_str) if gasto_empresa_total > 0 else {}
+    )
     mes_df["Gastos_Empresa"] = mes_df["_Mes"].apply(
         lambda p: _ge_por_periodo.get(f"{p.year}-{p.month:02d}", 0.0)
     )
@@ -367,6 +372,12 @@ def generate_report_html(
     c8 = _heatmap(piv_v, [[0, "#F0FFF4"], [1, "#548235"]],
                   "Heatmap Ventas — Actividad por Semana del Mes")
 
+    # ── Gastos de Empresa — composición y puente de margen ───────────────────
+    fig_ge_bar = fig_ge_waterfall = None
+    if gasto_empresa_total > 0:
+        fig_ge_bar = plot_barras_gastos_empresa(_ge_por_concepto, gasto_empresa_total)
+        fig_ge_waterfall = plot_waterfall_margen(margen, _ge_por_concepto, margen_operativo)
+
     # ── Convert all figures to embedded HTML (shows progress) ────────────────
     _queue = [
         ("donut_cat",   fig_donut_cat,   "Distribución de Categorías"),
@@ -391,6 +402,10 @@ def generate_report_html(
         _queue.append(("donut_resto",   fig_donut_resto,  "Desglose Resto Clientes"))
     if fig_productividad is not None:
         _queue.append(("productividad", fig_productividad, "Ventas vs Comisiones"))
+    if fig_ge_bar is not None:
+        _queue.append(("ge_bar",       fig_ge_bar,       "Gastos de Empresa por Concepto"))
+    if fig_ge_waterfall is not None:
+        _queue.append(("ge_waterfall", fig_ge_waterfall, "Margen Bruto → Operativo"))
 
     _n = len(_queue)
     _imgs: dict[str, str] = {}
@@ -407,9 +422,10 @@ def generate_report_html(
     # ── HTML COMPONENTS ───────────────────────────────────────────────────────
 
     # KPI grid
-    def _kpi(label, val, color, note=""):
+    def _kpi(label, val, color, note="", accent=None):
         note_tag = f'<div class="kpi-note">{note}</div>' if note else ""
-        return (f'<div class="kpi-card">'
+        accent_style = f'border-left:4px solid {accent};' if accent else ""
+        return (f'<div class="kpi-card" style="{accent_style}">'
                 f'<div class="kpi-label">{label}</div>'
                 f'<div class="kpi-val" style="color:{color}">{val}</div>'
                 f'{note_tag}</div>')
@@ -431,9 +447,12 @@ def generate_report_html(
     if gasto_empresa_total > 0:
         mo_color  = _GREEN if margen_operativo >= 0 else _RED
         kpi_html += (
-            _kpi("Margen Operativo",   _fmt_m(margen_operativo),      mo_color,
-                 "Margen Bruto − Gastos de Empresa")
-            + _kpi("Margen Operativo %", f"{margen_operativo_pct:.1f}%", mo_color)
+            _kpi("Gastos de Empresa", _fmt_m(gasto_empresa_total), COLOR_GASTOS_EMPRESA,
+                 "Nómina y otros — no pasan por el SAE", accent=COLOR_GASTOS_EMPRESA)
+            + _kpi("Margen Operativo",   _fmt_m(margen_operativo),      mo_color,
+                   "Margen Bruto − Gastos de Empresa", accent=COLOR_GASTOS_EMPRESA)
+            + _kpi("Margen Operativo %", f"{margen_operativo_pct:.1f}%", mo_color,
+                   accent=COLOR_GASTOS_EMPRESA)
         )
     kpi_html += '</div>'
 
@@ -659,23 +678,13 @@ body{font-family:'Segoe UI',system-ui,-apple-system,Arial,sans-serif;
             f'<div class="sec-body">{body}</div></div>'
         )
 
-    # Gastos de Empresa — desglose por concepto del período
+    # Gastos de Empresa — desglose por concepto del período (mismo lenguaje
+    # visual que cat_bar, más escaneable que una tabla plana en un doc estático)
     _ge_desglose_html = ""
     if gasto_empresa_total > 0:
-        _ge_por_concepto = get_gastos_empresa_por_concepto(_periodos_str)
-        _ge_rows = "".join(
-            f"<tr><td>{concepto}</td><td>${monto:,.0f}</td>"
-            f"<td>{monto/gasto_empresa_total*100:.1f}%</td></tr>"
-            for concepto, monto in _ge_por_concepto.items()
-        )
         _ge_desglose_html = (
             '<div class="sub">Gastos de Empresa del Período (captura manual)</div>'
-            '<table class="rpt-table">'
-            '<thead><tr><th>Concepto</th><th>Monto</th><th>% del Total</th></tr></thead>'
-            f'<tbody>{_ge_rows}'
-            f'<tr class="total-row"><td>TOTAL</td>'
-            f'<td>${gasto_empresa_total:,.0f}</td><td>100.0%</td></tr>'
-            '</tbody></table>'
+            + _img("ge_bar")
         )
 
     # Section 1 — Resumen Ejecutivo
@@ -726,11 +735,16 @@ body{font-family:'Segoe UI',system-ui,-apple-system,Arial,sans-serif;
     )
 
     # Section 4 — Comparativa
+    _ge_waterfall_html = (
+        '<div class="sub">De Margen Bruto a Margen Operativo</div>' + _img("ge_waterfall")
+        if gasto_empresa_total > 0 else ""
+    )
     s4 = (
         '<div class="sub">Ventas vs Compras por Mes · Margen %</div>'
         + _img("c1")
         + '<div class="sub">Margen Bruto Mensual</div>'
         + _img("c2")
+        + _ge_waterfall_html
         + '<div class="sub">Gasto por Categoría como % de Ventas del Mes</div>'
         + _img("c3")
         + risk_box

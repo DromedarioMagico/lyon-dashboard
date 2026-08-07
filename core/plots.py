@@ -6,7 +6,13 @@ and returns a go.Figure ready for st.plotly_chart().
 import plotly.express as px
 import plotly.graph_objects as go
 
-from core.catalogos import PALETA_CATEGORIAS, ETIQ_PENDIENTE, PALETA_PRINCIPAL, label_mes
+from core.catalogos import (
+    PALETA_CATEGORIAS, ETIQ_PENDIENTE, PALETA_PRINCIPAL, label_mes,
+    COLOR_LYON, COLOR_GASTOS_EMPRESA,
+)
+
+_RED = "#C00000"
+_GREEN = "#548235"
 
 _TOP_N_PROVEEDORES    = 10
 _TOP_N_FACTURAS       = 10
@@ -106,6 +112,142 @@ def plot_barras_categorias(df, gasto_total, pct_cobertura, prov_pendientes):
         yaxis=dict(title=""),
         margin=dict(t=90, b=40, l=240, r=150),
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+    )
+    return fig
+
+
+# Monochromatic purple family anchored on COLOR_GASTOS_EMPRESA — keeps every
+# Gastos de Empresa visual (KPI accents, donut, bars, waterfall) visually
+# distinct from the real-purchase category palette used elsewhere.
+_PALETA_GASTOS_EMPRESA = [
+    "#7030A0", "#9754C4", "#5A2380", "#B383D6", "#421A5C", "#C9A6E8",
+]
+
+
+def _trunc(s, n=22):
+    return s if len(s) <= n else s[:n - 1] + "…"
+
+
+def plot_dona_gastos_empresa(ge_por_concepto, total):
+    """
+    Donut of Gastos de Empresa spend by concepto — composition view for the
+    interactive Compras page. `ge_por_concepto`: {concepto: monto}.
+    """
+    conceptos = list(ge_por_concepto.keys())
+    montos    = list(ge_por_concepto.values())
+    colors    = [_PALETA_GASTOS_EMPRESA[i % len(_PALETA_GASTOS_EMPRESA)]
+                 for i in range(len(conceptos))]
+
+    fig = go.Figure(go.Pie(
+        labels=conceptos, values=montos, hole=0.55,
+        marker=dict(colors=colors, line=dict(color="white", width=1.5)),
+        textposition="inside", textinfo="percent",
+        texttemplate="%{percent:.1%}",
+        sort=True,
+        hovertemplate="<b>%{label}</b><br>$%{value:,.0f} MXN<br>%{percent}<extra></extra>",
+    ))
+    fig.update_layout(
+        title="<b>Gastos de Empresa — Composición</b>",
+        template="plotly_white",
+        height=420,
+        annotations=[dict(
+            text=f"<b>${total/1e6:,.1f}M</b><br><span style='font-size:11px'>MXN total</span>",
+            x=0.5, y=0.5, font=dict(size=15), showarrow=False,
+        )],
+        legend=dict(orientation="v", yanchor="middle", y=0.5, font=dict(size=11)),
+        margin=dict(t=60, b=20, l=20, r=20),
+        uniformtext=dict(minsize=10, mode="hide"),
+        paper_bgcolor='rgba(0,0,0,0)',
+    )
+    return fig
+
+
+def plot_barras_gastos_empresa(ge_por_concepto, total):
+    """
+    Horizontal bar of Gastos de Empresa by concepto — mirrors the visual
+    grammar of plot_barras_categorias (value + % label outside each bar).
+    Used in the static HTML report, where a scannable bar list reads better
+    on paper/PDF than a hover-dependent donut.
+    """
+    items     = sorted(ge_por_concepto.items(), key=lambda kv: kv[1])
+    conceptos = [k for k, _ in items]
+    montos    = [v for _, v in items]
+    colors    = [_PALETA_GASTOS_EMPRESA[i % len(_PALETA_GASTOS_EMPRESA)]
+                 for i in range(len(conceptos))]
+    pcts      = [m / total * 100 if total else 0 for m in montos]
+
+    n = len(conceptos)
+    fig = go.Figure(go.Bar(
+        x=montos, y=conceptos, orientation="h",
+        marker_color=colors,
+        text=[f"  ${m/1e6:,.2f}M  ({p:.1f}%)" for m, p in zip(montos, pcts)],
+        textposition="outside",
+        cliponaxis=False,
+        hovertemplate="<b>%{y}</b><br>Gasto: $%{x:,.0f} MXN<extra></extra>",
+    ))
+    fig.update_layout(
+        title=(
+            "<b>Gastos de Empresa por Concepto</b>"
+            f"<br><sup>Total del período: <b>${total/1e6:,.1f}M MXN</b></sup>"
+        ),
+        template="plotly_white",
+        height=max(300, 55 * n + 130),
+        showlegend=False,
+        xaxis=dict(tickformat="$,.0f", title="Monto (MXN)"),
+        yaxis=dict(title=""),
+        margin=dict(t=80, b=40, l=220, r=140),
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+    )
+    return fig
+
+
+def plot_waterfall_margen(margen_bruto, ge_por_concepto, margen_operativo, top_n=5):
+    """
+    Waterfall bridge: Margen Bruto → (− Gastos de Empresa por concepto, top N
+    + 'Otros conceptos') → Margen Operativo. Makes the P&L impact of Gastos
+    de Empresa explicit instead of a bolted-on info box. Used in both the
+    Comparativa page and the HTML report.
+    """
+    items = sorted(ge_por_concepto.items(), key=lambda kv: kv[1], reverse=True)
+    top   = items[:top_n]
+    resto = sum(v for _, v in items[top_n:])
+
+    labels = ["Margen Bruto"] + [_trunc(k) for k, _ in top]
+    deltas = [-v for _, v in top]
+    if resto > 0:
+        labels.append("Otros conceptos")
+        deltas.append(-resto)
+    labels.append("Margen Operativo")
+
+    values   = [margen_bruto] + deltas + [0]  # last 0 is a placeholder — ignored for measure="total"
+    measures = ["absolute"] + ["relative"] * len(deltas) + ["total"]
+    texts    = (
+        [f"${margen_bruto/1e6:,.2f}M"]
+        + [f"-${abs(d)/1e6:,.2f}M" for d in deltas]
+        + [f"${margen_operativo/1e6:,.2f}M"]
+    )
+
+    fig = go.Figure(go.Waterfall(
+        x=labels, y=values,
+        measure=measures,
+        text=texts,
+        textposition="outside",
+        connector=dict(line=dict(color="#E5E7EB", width=1)),
+        increasing=dict(marker=dict(color=_GREEN)),
+        decreasing=dict(marker=dict(color=COLOR_GASTOS_EMPRESA)),
+        totals=dict(marker=dict(color=COLOR_LYON)),
+        hovertemplate="<b>%{x}</b><br>$%{y:,.0f} MXN<extra></extra>",
+    ))
+    fig.update_layout(
+        title=(
+            "<b>De Margen Bruto a Margen Operativo</b>"
+            "<br><sup>Impacto de los Gastos de Empresa (nómina y otros) en el margen</sup>"
+        ),
+        template="plotly_white", height=420, showlegend=False,
+        yaxis=dict(tickformat="$,.0f", title="MXN"),
+        xaxis_title="",
+        margin=dict(t=90, b=60, l=80, r=40),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
     )
     return fig
 

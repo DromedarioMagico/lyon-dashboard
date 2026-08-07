@@ -3,16 +3,19 @@ import plotly.graph_objects as go
 import pandas as pd
 
 from core.catalogos import (
-    COLOR_LYON, COLOR_VENTAS, PALETA_CATEGORIAS, ETIQ_PENDIENTE,
+    COLOR_LYON, COLOR_VENTAS, COLOR_GASTOS_EMPRESA, PALETA_CATEGORIAS, ETIQ_PENDIENTE,
     CATALOGO_CATEGORIAS, label_mes,
 )
-from core.database import init_db, get_gastos_empresa_totales_por_periodo
+from core.database import (
+    init_db, get_gastos_empresa_totales_por_periodo, get_gastos_empresa_por_concepto,
+)
 from core.etl_compras import aplicar_clasificaciones
 from core.etl_ventas import aplicar_vendedores
 from core.navigation import (
     render_sidebar_search, render_sidebar_status,
     inject_custom_css, handle_pending_nav, render_periodo_filter,
 )
+from core.plots import plot_waterfall_margen
 
 st.set_page_config(
     page_title="Comparativa — Lyon AG",
@@ -193,6 +196,7 @@ mes_df["Margen_pct"] = mes_df.apply(
 _periodos_str      = [f"{p.year}-{p.month:02d}" for p in meses_sel]
 _ge_por_periodo    = get_gastos_empresa_totales_por_periodo(_periodos_str)
 gasto_empresa_total = sum(_ge_por_periodo.values())
+_ge_por_concepto_cmp = get_gastos_empresa_por_concepto(_periodos_str) if gasto_empresa_total > 0 else {}
 
 mes_df["Gastos_Empresa"] = mes_df["_Mes"].apply(
     lambda p: _ge_por_periodo.get(f"{p.year}-{p.month:02d}", 0.0)
@@ -239,13 +243,26 @@ k7.markdown(
 
 # ── Margen Operativo (incluye Gastos de Empresa) ────────────────────────────────
 if gasto_empresa_total > 0:
-    st.info(
-        f"💼 **Margen Operativo (incl. Gastos de Empresa):** "
-        f"${margen_operativo/1e6:,.2f}M MXN ({margen_operativo_pct:.1f}%) "
-        f"— Margen Bruto ${margen/1e6:,.2f}M − Gastos de Empresa "
-        f"${gasto_empresa_total/1e6:,.2f}M (nómina y otros, capturados manualmente) "
-        f"para el período seleccionado."
+    st.markdown("#### 💼 De Margen Bruto a Margen Operativo")
+    st.caption(
+        "El Margen Bruto (Ventas − Compras) menos los Gastos de Empresa capturados "
+        "manualmente para el período — nómina, impuestos y demás costos que nunca "
+        "generan una orden de compra."
     )
+    mo_color = _GREEN if margen_operativo >= 0 else _RED
+    kc1, kc2, kc3 = st.columns(3)
+    kc1.markdown(_kpi("Margen Bruto", f"${margen/1e6:,.2f}M", margen_color), unsafe_allow_html=True)
+    kc2.markdown(_kpi("Gastos de Empresa", f"${gasto_empresa_total/1e6:,.2f}M", COLOR_GASTOS_EMPRESA),
+                 unsafe_allow_html=True)
+    kc3.markdown(
+        _kpi("Margen Operativo", f"${margen_operativo/1e6:,.2f}M ({margen_operativo_pct:.1f}%)", mo_color),
+        unsafe_allow_html=True,
+    )
+    with st.container(border=True):
+        st.plotly_chart(
+            plot_waterfall_margen(margen, _ge_por_concepto_cmp, margen_operativo),
+            use_container_width=True,
+        )
 
 st.divider()
 
@@ -659,6 +676,13 @@ st.divider()
 # ══════════════════════════════════════════════════════════════════════════════
 with st.container(border=True):
     st.markdown("##### Resumen mensual")
+    if gasto_empresa_total > 0:
+        st.caption(
+            "Las últimas 3 columnas (<span style='color:#7030A0;font-weight:700'>"
+            "Gastos Empresa → Margen Operativo</span>) son Costos No-ERP — "
+            "capturados manualmente, no vienen del SAE.",
+            unsafe_allow_html=True,
+        )
 
     _cols_base = ["Mes", "Ventas", "Compras", "Margen", "Margen_pct"]
     _fila_total = {
