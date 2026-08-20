@@ -7,7 +7,8 @@ import streamlit as st
 
 from core.catalogos import (
     CATALOGO_CATEGORIAS, ETIQ_PENDIENTE,
-    COLOR_LYON, COLOR_VENTAS, COLOR_GASTOS_EMPRESA, PALETA_CATEGORIAS, label_mes,
+    COLOR_LYON, COLOR_VENTAS, COLOR_GASTOS_EMPRESA,
+    PALETA_CATEGORIAS, PALETA_PRINCIPAL, label_mes,
 )
 from core.database import (
     init_db, get_gastos_empresa_totales_por_periodo, get_gastos_empresa_por_concepto,
@@ -768,10 +769,7 @@ def _render_detalle_categoria(df_full, df_ctx, categoria):
 
     st.divider()
 
-    # ── Sección 1: Stacked area mensual por proveedor ─────────────────────────
-    st.markdown("### Evolución Mensual por Proveedor")
-    st.caption("Composición mensual del gasto — identifica qué proveedor mueve la aguja cada mes.")
-
+    # ── Datos compartidos: Sección 1a (cuánto) y 1b (con quién) ───────────────
     top5_provs   = prov_shares.head(5).index.tolist()
     top5_display = {p: (p[:28] + "…" if len(p) > 30 else p) for p in top5_provs}
 
@@ -790,6 +788,54 @@ def _render_detalle_categoria(df_full, df_ctx, categoria):
         _df_area.groupby(["_pk", "Proveedor"])["Gasto_Total_MXN"]
         .sum().reset_index()
     )
+    monthly_total = monthly_prov.groupby("_pk")["Gasto_Total_MXN"].sum()
+    total_vals    = [float(monthly_total.get(x, 0.0)) for x in all_x]
+
+    # ── Sección 1a: cuánto — total mensual, picos etiquetados ──────────────────
+    st.markdown("### Gasto Mensual Total")
+    st.caption("Cuánto se gastó cada mes en esta categoría — los meses extraordinarios saltan a la vista.")
+
+    _peak_idx = sorted(range(len(total_vals)), key=lambda i: total_vals[i], reverse=True)[:3]
+    _peak_idx = [i for i in _peak_idx if total_vals[i] > 0]
+    _peak_texts = [""] * len(total_vals)
+    for i in _peak_idx:
+        _mes_data = monthly_prov[monthly_prov["_pk"] == all_x[i]]
+        if len(_mes_data) > 0:
+            _top_row  = _mes_data.loc[_mes_data["Gasto_Total_MXN"].idxmax()]
+            _top_name = _top_row["Proveedor"]
+            _top_disp = _top_name[:20] + "…" if len(_top_name) > 22 else _top_name
+            _peak_texts[i] = f"${total_vals[i]/1e6:,.1f}M<br><span style='font-size:10px'>{_top_disp}</span>"
+        else:
+            _peak_texts[i] = f"${total_vals[i]/1e6:,.1f}M"
+
+    _y_max_total = max(total_vals) if total_vals else 0
+
+    with st.container(border=True):
+        fig_total = go.Figure(go.Bar(
+            x=x_labels, y=total_vals,
+            marker_color=cat_color,
+            text=_peak_texts,
+            textposition="outside",
+            cliponaxis=False,
+            hovertemplate="<b>%{x}</b><br>$%{y:,.0f} MXN<extra></extra>",
+        ))
+        fig_total.update_layout(
+            title=(
+                "<b>Gasto Mensual Total</b>"
+                + ("<br><sup>Agregado por año</sup>" if _anual_area else "")
+            ),
+            template="plotly_white", height=340, showlegend=False,
+            xaxis_title="",
+            yaxis=dict(tickformat="$.2s", title="MXN", range=[0, _y_max_total * 1.25 or 1]),
+            margin=dict(t=60, b=40, l=70, r=20),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(fig_total, use_container_width=True)
+
+    # ── Sección 1b: con quién — composición apilada por proveedor ─────────────
+    st.markdown("### Composición del Gasto por Proveedor")
+    st.caption("Quién explica el gasto de cada mes — un color por proveedor, \"Otros\" agrupa al resto.")
+
     monthly_prov["Grp"] = monthly_prov["Proveedor"].apply(
         lambda p: top5_display.get(p, p) if p in top5_provs else "Otros"
     )
@@ -803,39 +849,36 @@ def _render_detalle_categoria(df_full, df_ctx, categoria):
     if "Otros" in monthly_grp["Grp"].values:
         grp_order.append("Otros")
 
-    area_colors = _PROV_PALETTE[:5] + ["#BDBDBD"]
+    # Paleta de identidad multi-hue (no monocromática) — cada proveedor se
+    # distingue sin tener que revisar la leyenda; "Otros" siempre gris.
+    bar_colors = PALETA_PRINCIPAL[:5] + ["#9E9E9E"]
 
     with st.container(border=True):
-        fig_area = go.Figure()
+        fig_bar = go.Figure()
         for idx, grp in enumerate(grp_order):
             grp_data = monthly_grp[monthly_grp["Grp"] == grp].set_index("_pk")
             y_vals = [
                 float(grp_data.loc[x, "Gasto_Total_MXN"]) if x in grp_data.index else 0.0
                 for x in all_x
             ]
-            color = area_colors[idx % len(area_colors)]
-            fig_area.add_trace(go.Scatter(
+            color = bar_colors[idx % len(bar_colors)]
+            fig_bar.add_trace(go.Bar(
                 x=x_labels, y=y_vals,
                 name=grp,
-                stackgroup="one",
-                mode="lines",
-                line=dict(width=0.8, color=color),
-                fillcolor=color,
-                opacity=0.82,
+                marker=dict(color=color, line=dict(color="white", width=1)),
                 hovertemplate=f"<b>{grp}</b><br>%{{x}}: $%{{y:,.0f}} MXN<extra></extra>",
             ))
-        fig_area.update_layout(
-            title=(
-                "<b>Gasto Acumulado por Proveedor</b>"
-                + ("<br><sup>Agregado por año</sup>" if _anual_area else "")
-            ),
-            template="plotly_white", height=380,
-            legend=dict(orientation="h", y=-0.22, x=0, xanchor="left", font=dict(size=10)),
-            xaxis_title="", yaxis=dict(tickformat="$,.0f", title="MXN"),
-            margin=dict(t=60, b=90, l=80, r=20),
+        fig_bar.update_layout(
+            title="<b>Composición del Gasto por Proveedor</b>",
+            barmode="stack",
+            template="plotly_white", height=400,
+            legend=dict(orientation="h", y=-0.18, x=0, xanchor="left", font=dict(size=11)),
+            xaxis_title="", yaxis=dict(tickformat="$.2s", title="MXN"),
+            margin=dict(t=60, b=90, l=70, r=20),
+            bargap=0.15,
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         )
-        st.plotly_chart(fig_area, use_container_width=True)
+        st.plotly_chart(fig_bar, use_container_width=True)
 
     st.divider()
 
