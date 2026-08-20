@@ -150,6 +150,13 @@ def init_db():
                 )
             """)
 
+        # Migración idempotente: "Maquila" se renombró a "Maquila Externa".
+        # No-op en corridas subsecuentes una vez migrados los registros.
+        con.execute(
+            "UPDATE proveedores_clasificacion SET categoria = 'Maquila Externa' "
+            "WHERE categoria = 'Maquila'"
+        )
+
 
 def get_clasificaciones():
     """Returns dict: {proveedor: {categoria, notas, origen}}"""

@@ -35,7 +35,7 @@ _GRAY  = "#9E9E9E"
 
 COSTOS_DIRECTOS = [
     "Sustratos (Papel)", "Pre-prensa y Químicos", "Insumos de Producción",
-    "Empaque y Embalaje", "Maquila",
+    "Empaque y Embalaje", "Maquila Externa", "Maquila de Destajo",
 ]
 OVERHEAD = [
     "Mantenimiento y Refacciones", "Logística / Fletes", "Almacenaje y Renta",
@@ -228,7 +228,8 @@ k6.markdown(
     _kpi("Costo Directo %", f"{pct_directo:.1f}%", _BLUE,
          desc="<b>Costos directos ÷ Ventas × 100</b><br>"
               "Porcentaje de las ventas destinado a materiales y producción directa.<br>"
-              "<b>Incluye:</b> Sustratos, Pre-prensa y Químicos, Insumos de Producción, Empaque y Embalaje, Maquila."),
+              "<b>Incluye:</b> Sustratos, Pre-prensa y Químicos, Insumos de Producción, Empaque y Embalaje, "
+              "Maquila Externa, Maquila de Destajo."),
     unsafe_allow_html=True,
 )
 k7.markdown(

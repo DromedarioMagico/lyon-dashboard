@@ -3,7 +3,8 @@ CATALOGO_CATEGORIAS = [
     "Pre-prensa y Químicos",
     "Insumos de Producción",
     "Empaque y Embalaje",
-    "Maquila",
+    "Maquila Externa",
+    "Maquila de Destajo",
     "Mantenimiento y Refacciones",
     "Logística / Fletes",
     "Almacenaje y Renta",
@@ -29,7 +30,7 @@ def aplicar_ancla(proveedor):
     if "SANCHEZ S.A"          in p:                         return "Pre-prensa y Químicos"
     if "JAQUELINA REYES"      in p or "GUTMAN BROS" in p:   return "Mantenimiento y Refacciones"
     if "VIGMAN GRAPHICS"      in p:                         return "Almacenaje y Renta"
-    if "INFOVITA"             in p:                         return "Maquila"
+    if "INFOVITA"             in p:                         return "Maquila Externa"
     return None
 
 

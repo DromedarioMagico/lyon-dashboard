@@ -39,7 +39,7 @@ _GRAY  = "#9E9E9E"
 
 _COSTOS_DIRECTOS = [
     "Sustratos (Papel)", "Pre-prensa y Químicos", "Insumos de Producción",
-    "Empaque y Embalaje", "Maquila",
+    "Empaque y Embalaje", "Maquila Externa", "Maquila de Destajo",
 ]
 _OVERHEAD = [
     "Mantenimiento y Refacciones", "Logística / Fletes", "Almacenaje y Renta",
