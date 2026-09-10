@@ -33,6 +33,11 @@ _PG_MAXCONN = 5
 _PG_POOL    = None
 _POOL_LOCK  = threading.Lock()
 
+# Sin connect_timeout, psycopg2 hereda el del sistema (decenas de segundos). Con
+# la base caída eso deja cada carga de página colgada hasta que el navegador se
+# rinde, en vez de mostrar el error. 5s alcanza de sobra para una base sana.
+_CONNECT_TIMEOUT = 5
+
 
 def _pool():
     """Pool perezoso. Devuelve None si no se puede crear (se cae a conexión directa)."""
@@ -43,7 +48,9 @@ def _pool():
         if _PG_POOL is None:
             try:
                 from psycopg2.pool import ThreadedConnectionPool
-                _PG_POOL = ThreadedConnectionPool(1, _PG_MAXCONN, _PG_URL)
+                _PG_POOL = ThreadedConnectionPool(
+                    1, _PG_MAXCONN, _PG_URL, connect_timeout=_CONNECT_TIMEOUT
+                )
             except Exception:
                 _PG_POOL = False        # marca "no disponible", no reintentar
     return _PG_POOL or None
@@ -88,7 +95,8 @@ class _Conn:
         for intento in (0, 1):
             pool = _pool()
             if pool is None:
-                return psycopg2.connect(_PG_URL)     # fallback sin pool
+                # fallback sin pool
+                return psycopg2.connect(_PG_URL, connect_timeout=_CONNECT_TIMEOUT)
             try:
                 con = pool.getconn()
                 if con.closed:
@@ -206,15 +214,26 @@ def init_db(force=False):
         st.error(
             f"**Error de conexión a la base de datos** (3 intentos)\n\n"
             f"```\n{type(ultimo_error).__name__}: {ultimo_error}\n```\n\n"
+            f"**Primero revisa el estado del proyecto en el panel de Supabase.** "
+            f"Si ahí aparece *Database not usable* o un timeout de TCP, la base "
+            f"está caída y no hay nada que la app pueda hacer: hay que "
+            f"reactivarla o reiniciarla desde Supabase.\n\n"
             f"Causas más probables, en orden:\n\n"
-            f"1. **El proyecto de Supabase está pausado.** El plan gratuito lo "
-            f"suspende tras varios días sin uso. Ábrelo en el panel de Supabase "
-            f"para despertarlo — es lo primero que hay que descartar si el error "
-            f"dice *server didn't return client encoding*.\n"
-            f"2. **Se agotaron las conexiones.** Revisa *Database → Connection "
-            f"pooling* en Supabase.\n"
-            f"3. **El `supabase_db_url` de los secrets es incorrecto** o le falta "
-            f"el puerto del pooler.\n"
+            f"1. **Proyecto pausado.** El plan gratuito lo suspende tras varios "
+            f"días sin uso. Se despierta desde el panel.\n"
+            f"2. **Instancia caída o reiniciándose** (memoria o disco agotados). "
+            f"Revisa *Reports* y *Logs*, y prueba *Settings → General → Restart "
+            f"project*.\n"
+            f"3. **Se agotaron las conexiones.** Revisa *Database → Connection "
+            f"pooling*.\n"
+            f"4. **El `supabase_db_url` de los secrets es incorrecto** o le falta "
+            f"el puerto del pooler.\n\n"
+            f"**Para trabajar mientras tanto:** quita el secret "
+            f"`supabase_db_url` en la configuración de la app en Streamlit Cloud. "
+            f"La app arranca sola con SQLite y puedes cargar archivos y ver los "
+            f"dashboards. Lo que ya está guardado en Supabase **no se pierde** "
+            f"—sigue ahí, solo inalcanzable— pero las clasificaciones que "
+            f"captures en ese modo no persisten entre redeploys."
         )
         st.stop()
 
