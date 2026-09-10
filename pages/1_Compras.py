@@ -10,16 +10,23 @@ from core.catalogos import (
     COLOR_LYON, COLOR_VENTAS, COLOR_GASTOS_EMPRESA,
     PALETA_CATEGORIAS, PALETA_PRINCIPAL, label_mes,
 )
+from core.conciliacion import (
+    conciliar_con_sae, aplicar_catalogo_cuentas, marcar_publicables,
+    resumen_conciliacion,
+)
 from core.database import (
     init_db, get_gastos_empresa_totales_por_periodo, get_gastos_empresa_por_concepto,
+    get_contabilidad, get_cuentas_contables,
 )
 from core.etl_compras import cargar_compras, aplicar_clasificaciones
+from core.etl_contabilidad import df_desde_bd
 from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav, breadcrumb, render_periodo_filter, parse_semana_x
 from core.plots import (
     plot_barras_categorias,
     plot_barras_temporales,
     plot_curva_semanal_compras,
     plot_dona_gastos_empresa,
+    plot_gasto_fuera_sae,
     plot_pareto_proveedores,
 )
 
@@ -1341,19 +1348,51 @@ gasto_empresa      = sum(_ge_por_periodo.values())
 gasto_con_empresa  = gasto_total + gasto_empresa
 _ge_por_concepto   = get_gastos_empresa_por_concepto(_periodos_str) if gasto_empresa > 0 else {}
 
-if gasto_empresa > 0:
+# ── Contabilidad: cobertura del SAE y gasto fuera del proceso de compras ──────
+# El libro contable vive en la BD (no en session_state), así que está disponible
+# aunque el usuario no haya pasado por Gastos de Empresa en esta sesión.
+_df_ctb = df_desde_bd(get_contabilidad(_periodos_str))
+_conc   = None
+_res_ctb = None
+if len(_df_ctb) > 0:
+    _conc = marcar_publicables(
+        aplicar_catalogo_cuentas(
+            conciliar_con_sae(_df_ctb, df_full), get_cuentas_contables()
+        )
+    )
+    _res_ctb = resumen_conciliacion(_conc)
+
+if gasto_empresa > 0 or _res_ctb:
     st.markdown("#### 💼 Costo Operativo Total")
     st.caption(
-        "Compras reales (SAE) más los Gastos de Empresa capturados manualmente "
-        "para el período seleccionado — nómina, impuestos y demás costos que "
-        "nunca generan una orden de compra."
+        "Compras reales (SAE) más los Gastos de Empresa del período — nómina, "
+        "impuestos y demás costos que nunca generan una orden de compra. Se "
+        "alimentan de la base de Contabilidad y de la captura manual."
     )
-    kc1, kc2, kc3 = st.columns(3)
+    kc1, kc2, kc3, kc4 = st.columns(4)
     kc1.markdown(_kpi("Compras (SAE)", f"${gasto_total/1e6:,.2f}M", _BLUE), unsafe_allow_html=True)
     kc2.markdown(_kpi("Gastos de Empresa", f"${gasto_empresa/1e6:,.2f}M", COLOR_GASTOS_EMPRESA),
                  unsafe_allow_html=True)
     kc3.markdown(_kpi("Costo Operativo Total", f"${gasto_con_empresa/1e6:,.2f}M", _BLUE),
                  unsafe_allow_html=True)
+
+    # Cobertura del SAE: qué proporción del gasto que reportó Contabilidad pasó
+    # por el proceso de compras. Es el número de control interno.
+    if _res_ctb and _res_ctb["total"] > 0:
+        _cob = _res_ctb["en_sae"] / _res_ctb["total"] * 100
+        kc4.markdown(_kpi("Cobertura del SAE", f"{_cob:.1f}%", _BLUE),
+                     unsafe_allow_html=True)
+    else:
+        kc4.markdown(_kpi("Cobertura del SAE", "— sin contabilidad —", _GRAY),
+                     unsafe_allow_html=True)
+
+    if _res_ctb:
+        _pend = _res_ctb["n_cuentas_sin_clasificar"]
+        if _pend:
+            st.caption(
+                f"⚠️ {_pend} cuenta(s) contable(s) sin clasificar "
+                f"(${_res_ctb['sin_clasificar']/1e6:,.2f}M) todavía no cuentan aquí."
+            )
 
 st.divider()
 
@@ -1384,6 +1423,15 @@ if gasto_empresa > 0:
             plot_dona_gastos_empresa(_ge_por_concepto, gasto_empresa),
             use_container_width=True,
         )
+
+if _conc is not None:
+    with st.container(border=True):
+        st.caption(
+            "A quién se le paga sin que pase por una orden de compra, según el libro "
+            "de Contabilidad del período. La nómina nunca va a pasar por el SAE; un "
+            "proveedor de insumos en esta lista sí es una señal."
+        )
+        st.plotly_chart(plot_gasto_fuera_sae(_conc), use_container_width=True)
 
 with st.container(border=True):
     sem_event = st.plotly_chart(

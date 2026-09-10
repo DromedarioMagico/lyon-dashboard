@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import streamlit as st
-from core.database import get_stats
+from core.database import get_stats, get_meta_contabilidad
 from core.catalogos import label_mes
 
 
@@ -241,6 +241,18 @@ def render_sidebar_status():
     st.sidebar.metric("Proveedores clasificados", stats["total_clasificados"])
     if stats["ultima_modificacion"]:
         st.sidebar.caption(f"Últ. modificación: {str(stats['ultima_modificacion'])[:16]}")
+
+    # Contabilidad vive en la BD, no en session_state: se reporta aquí para que se
+    # note que está disponible aunque no se haya subido nada en esta sesión.
+    ctb = get_meta_contabilidad()
+    if ctb["n_movimientos"]:
+        _p0, _p1 = ctb["periodos"]
+        st.sidebar.metric("Movimientos de contabilidad", f"{ctb['n_movimientos']:,}")
+        st.sidebar.caption(
+            f"Periodos {_p0} → {_p1} · cargado {str(ctb['ultima_carga'])[:16]}"
+        )
+    else:
+        st.sidebar.caption("Contabilidad: sin base cargada")
 
     if compras_loaded and ventas_loaded:
         st.sidebar.markdown("---")

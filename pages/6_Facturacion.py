@@ -1,17 +1,22 @@
 import datetime as dt
 
+import pandas as pd
 import streamlit as st
 
-from core.catalogos import COLOR_LYON
-from core.database import init_db
+from core.catalogos import COLOR_LYON, COLOR_GASTOS_EMPRESA
+from core.conciliacion import (
+    aplicar_catalogo_cuentas, conciliar_con_sae, resumen_conciliacion, NAT_GASTO,
+)
+from core.database import init_db, get_contabilidad, get_cuentas_contables
+from core.etl_contabilidad import df_desde_bd
 from core.etl_facturacion import cargar_facturacion
 from core.navigation import (
     render_sidebar_search, render_sidebar_status, inject_custom_css,
     handle_pending_nav, render_periodo_filter,
 )
 from core.plots import (
-    plot_embudo_facturacion, plot_facturacion_segmento, plot_fugas_cliente,
-    plot_aging_remisiones, plot_pedido_vs_facturado,
+    plot_facturacion_segmento, plot_fugas_cliente, plot_aging_remisiones,
+    plot_waterfall_margen, plot_facturado_vs_gasto,
 )
 
 st.set_page_config(
@@ -34,9 +39,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 st.caption(
-    "El tramo **pedido → factura**. Continuación del embudo de Ventas: qué se "
-    "facturó, qué quedó pendiente y dónde se fugó valor entre el pedido y el "
-    "documento."
+    "El resultado real del mes: qué se facturó, cuánto costó según Contabilidad, "
+    "dónde se fugó valor en devoluciones y descuentos, y qué falta por facturar."
 )
 
 
@@ -66,6 +70,7 @@ def _kpi(label, value, color, desc=None):
 _GREEN = "#548235"
 _AMBER = "#E97132"
 _RED   = "#C00000"
+_GRAY  = "#9E9E9E"
 
 
 # ── Upload ────────────────────────────────────────────────────────────────────
@@ -115,68 +120,103 @@ st.caption(
     f"cargado {meta['uploaded_at']}"
 )
 st.info(
-    "**Regla de lectura:** Ventas muestra **pedidos con IVA**; esta página muestra "
-    "**facturas sin IVA**. Son dos etapas distintas, no dos versiones del mismo número. "
-    "El embudo lleva los pedidos a base sin IVA para que sea comparable."
+    "**Regla de lectura:** esta página muestra **facturas sin IVA** (ingreso real "
+    "del mes) contra el **gasto que reportó Contabilidad** para ese mismo mes. No "
+    "habla de pedidos: el pedido es una etapa anterior y vive en Ventas."
 )
-
-# Datos del SAE (si Ventas está cargado) — para el embudo y el cruce por cliente
-tiene_ventas = "df_ventas" in st.session_state
-df_ventas    = st.session_state.get("df_ventas")
 
 facturado_periodo = float(df_fact["Subtotal_MXN"].sum())
 pendiente_periodo = float(df_rem["Subtotal_MXN"].sum())
 
-pedidos_periodo = None
-if tiene_ventas and periodo is not None:
-    _pv = df_ventas[df_ventas["_Mes"] == periodo]
-    if len(_pv):
-        pedidos_periodo = float(_pv["Subtotal_MXN"].sum())
+# ── Gasto contable del mismo periodo ──────────────────────────────────────────
+# Solo cuentas marcadas como gasto operativo: los movimientos de balance
+# (anticipos) inflarían el costo y distorsionarían el margen.
+_periodo_str = f"{periodo.year}-{periodo.month:02d}" if periodo is not None else None
+_df_ctb  = df_desde_bd(get_contabilidad([_periodo_str] if _periodo_str else None))
+_cuentas = get_cuentas_contables()
+
+gasto_periodo   = 0.0
+gasto_por_cuenta = {}
+res_ctb         = None
+if len(_df_ctb) > 0:
+    _ctb = aplicar_catalogo_cuentas(_df_ctb, _cuentas)
+    res_ctb = resumen_conciliacion(conciliar_con_sae(_ctb, st.session_state.get("df_compras")))
+    _op = _ctb[_ctb["Naturaleza"] == NAT_GASTO]
+    gasto_periodo = float(_op["Monto_MXN"].sum())
+    gasto_por_cuenta = (
+        _op.groupby("Cuenta_Nombre")["Monto_MXN"].sum()
+        .sort_values(ascending=False).to_dict()
+    )
+
+margen     = facturado_periodo - gasto_periodo
+margen_pct = margen / facturado_periodo * 100 if facturado_periodo else 0.0
 
 
 # ════════════════════════════════════════════════════════════════════════════════
-#  1 — Embudo del periodo
+#  1 — Facturado vs gasto reportado por contabilidad
 # ════════════════════════════════════════════════════════════════════════════════
-st.markdown("### Embudo del periodo")
+st.markdown("### Resultado del periodo")
 st.caption(
-    "Del pedido al documento fiscal. La conversión pedido → factura es un KPI que "
-    "hoy no existe: mide cuánto de lo vendido efectivamente se facturó en el mes."
+    "Lo que realmente se facturó contra lo que realmente costó, según Contabilidad. "
+    "Es la fotografía del mes: cuánto entró, cuánto salió y qué quedó."
 )
 
-k1, k2, k3 = st.columns(3)
+k1, k2, k3, k4 = st.columns(4)
 with k1:
-    if pedidos_periodo is not None:
-        st.markdown(_kpi("Pedidos SAE (sin IVA)", f"${pedidos_periodo/1e6:,.2f}M", COLOR_LYON,
-                         desc="Subtotal de pedidos del SAE en el mes del archivo. Base "
-                              "sin IVA para comparar contra facturación."),
-                    unsafe_allow_html=True)
-    else:
-        st.markdown(_kpi("Pedidos SAE (sin IVA)", "— sin Ventas —", "#9E9E9E",
-                         desc="Carga el archivo de Ventas (Pedidos SAE) para ver esta cifra "
-                              "y la conversión pedido → factura."),
-                    unsafe_allow_html=True)
-with k2:
     st.markdown(_kpi("Facturado (sin IVA)", f"${facturado_periodo/1e6:,.2f}M", _GREEN,
                      desc="Suma del subtotal de las facturas del mes. Coincide al peso con "
                           "la columna del mes en la hoja HISTORICO."),
                 unsafe_allow_html=True)
+with k2:
+    if gasto_periodo > 0:
+        st.markdown(_kpi("Gasto contable", f"${gasto_periodo/1e6:,.2f}M",
+                         COLOR_GASTOS_EMPRESA,
+                         desc="Movimientos del libro contable de este mes en cuentas "
+                              "marcadas como gasto operativo. Los anticipos y "
+                              "movimientos de balance no cuentan."),
+                    unsafe_allow_html=True)
+    else:
+        st.markdown(_kpi("Gasto contable", "— sin contabilidad —", _GRAY,
+                         desc="Sube la base de Contabilidad en Gastos de Empresa y "
+                              "clasifica las cuentas para ver el margen del periodo."),
+                    unsafe_allow_html=True)
 with k3:
-    st.markdown(_kpi("Pendiente por facturar", f"${pendiente_periodo/1e6:,.2f}M", _AMBER,
-                     desc="Remisiones entregadas y aún sin factura (hoja "
-                          "REMISIONES PTES FACTURAR), subtotal sin IVA."),
+    st.markdown(_kpi("Margen del periodo",
+                     f"${margen/1e6:,.2f}M" if gasto_periodo > 0 else "—",
+                     _GREEN if margen >= 0 else _RED,
+                     desc="Facturado menos gasto contable del mismo mes."),
+                unsafe_allow_html=True)
+with k4:
+    st.markdown(_kpi("Margen %",
+                     f"{margen_pct:.1f}%" if gasto_periodo > 0 else "—",
+                     _GREEN if margen >= 0 else _RED,
+                     desc="Margen sobre facturación. Es el número que dice si el mes "
+                          "se sostiene solo."),
                 unsafe_allow_html=True)
 
-with st.container(border=True):
-    st.plotly_chart(
-        plot_embudo_facturacion(pedidos_periodo, facturado_periodo, pendiente_periodo),
-        use_container_width=True,
+if res_ctb and res_ctb["n_cuentas_sin_clasificar"]:
+    st.warning(
+        f"**{res_ctb['n_cuentas_sin_clasificar']} cuenta(s) contable(s) sin clasificar** "
+        f"(${res_ctb['sin_clasificar']/1e6:,.2f}M en el libro completo) todavía no "
+        f"cuentan como gasto, así que el margen de arriba está incompleto. "
+        f"Clasifícalas en **Clasificaciones → Cuentas contables**."
     )
-    if pedidos_periodo is not None:
-        conv = facturado_periodo / pedidos_periodo * 100 if pedidos_periodo else 0
+
+with st.container(border=True):
+    if gasto_periodo > 0:
+        st.plotly_chart(
+            plot_waterfall_margen(facturado_periodo, gasto_por_cuenta, margen),
+            use_container_width=True,
+        )
         st.caption(
-            f"Conversión pedido → factura del periodo: **{conv:.1f}%**. "
-            f"Brecha (pedido no facturado en el mes): "
-            f"**${(pedidos_periodo - facturado_periodo)/1e6:,.2f}M**."
+            f"De **${facturado_periodo/1e6:,.2f}M** facturados quedan "
+            f"**${margen/1e6:,.2f}M** ({margen_pct:.1f}%) después del gasto que "
+            f"reportó Contabilidad para {meta['periodo']}."
+        )
+    else:
+        st.info(
+            "Sube la base de Contabilidad en **Gastos de Empresa** y clasifica las "
+            "cuentas para ver aquí de dónde se va el ingreso del mes."
         )
 
 
@@ -273,70 +313,67 @@ with st.container(border=True):
 
 
 # ════════════════════════════════════════════════════════════════════════════════
-#  5 — Cliente: pedido vs facturado
+#  5 — Peso del gasto contable sobre la facturación
 # ════════════════════════════════════════════════════════════════════════════════
-st.markdown("### Cliente: pedido vs facturado")
+st.markdown("### Peso del gasto contable sobre la facturación")
 st.caption(
-    "Cruce por **código numérico de cliente** — la llave que sí coincide entre "
-    "facturación y el SAE (18 = DELMAN, 270 = GD BAJIO, 287 = PENGUIN…). "
-    "La brecha por cliente es pedido no facturado en el periodo."
+    "Cada cuenta contable como porcentaje de lo que se facturó en el mes. Convierte "
+    "el gasto en una medida comparable entre meses buenos y malos: $2M de "
+    "mantenimiento pesa distinto en un mes de $9M que en uno de $6M."
 )
 
 with st.container(border=True):
-    fact_cli = (
-        df_fact.groupby("Cliente_Codigo", as_index=False)
-               .agg(Facturado_MXN=("Subtotal_MXN", "sum"),
-                    Cliente=("Cliente_Display", "first"))
-    )
-
-    if tiene_ventas and periodo is not None and "Cliente_Codigo" in df_ventas.columns:
-        ped_cli = (
-            df_ventas[df_ventas["_Mes"] == periodo]
-            .groupby("Cliente_Codigo", as_index=False)
-            .agg(Pedido_MXN=("Subtotal_MXN", "sum"),
-                 Cliente_SAE=("Cliente_Display", "first"))
+    if gasto_periodo > 0:
+        peso = pd.DataFrame(
+            [
+                {
+                    "Cuenta": nombre,
+                    "Monto": monto,
+                    "% de lo facturado": (
+                        monto / facturado_periodo * 100 if facturado_periodo else 0.0
+                    ),
+                }
+                for nombre, monto in gasto_por_cuenta.items()
+            ]
         )
-        cross = fact_cli.merge(ped_cli, on="Cliente_Codigo", how="outer")
-        cross["Cliente"] = cross["Cliente"].fillna(cross["Cliente_SAE"]).fillna(
-            cross["Cliente_Codigo"].astype("string")
-        )
-        cross["Facturado_MXN"] = cross["Facturado_MXN"].fillna(0.0)
-        cross["Pedido_MXN"]    = cross["Pedido_MXN"].fillna(0.0)
-        cross["Brecha_MXN"]    = cross["Pedido_MXN"] - cross["Facturado_MXN"]
-        cross = cross.sort_values("Pedido_MXN", ascending=False)
-
-        st.plotly_chart(
-            plot_pedido_vs_facturado(cross[["Cliente", "Pedido_MXN", "Facturado_MXN"]]),
-            use_container_width=True,
-        )
-        tabla_cross = cross[[
-            "Cliente_Codigo", "Cliente", "Pedido_MXN", "Facturado_MXN", "Brecha_MXN",
-        ]].rename(columns={
-            "Cliente_Codigo": "Código", "Pedido_MXN": "Pedido (sin IVA)",
-            "Facturado_MXN": "Facturado (sin IVA)", "Brecha_MXN": "Brecha",
-        })
         st.dataframe(
-            tabla_cross, use_container_width=True, hide_index=True,
+            peso, use_container_width=True, hide_index=True,
             column_config={
-                "Pedido (sin IVA)":    st.column_config.NumberColumn(format="$%,.0f"),
-                "Facturado (sin IVA)": st.column_config.NumberColumn(format="$%,.0f"),
-                "Brecha":              st.column_config.NumberColumn(format="$%,.0f"),
+                "Monto": st.column_config.NumberColumn(format="$%,.0f"),
+                "% de lo facturado": st.column_config.NumberColumn(format="%.1f%%"),
             },
+            height=min(480, 45 + 36 * min(len(peso), 11)),
+        )
+        st.caption(
+            f"El gasto contable del mes equivale al "
+            f"**{gasto_periodo/facturado_periodo*100:.1f}%** de lo facturado."
+            if facturado_periodo else ""
         )
     else:
-        st.warning(
-            "Carga el archivo de **Ventas** (Pedidos SAE) para cruzar pedido vs "
-            "facturado por cliente. Mientras tanto, sólo se muestra lo facturado:"
+        st.info(
+            "Sin base de Contabilidad cargada no hay gasto que comparar contra la "
+            "facturación."
         )
-        st.dataframe(
-            fact_cli[["Cliente_Codigo", "Cliente", "Facturado_MXN"]].rename(columns={
-                "Cliente_Codigo": "Código", "Facturado_MXN": "Facturado (sin IVA)",
-            }).sort_values("Facturado (sin IVA)", ascending=False),
-            use_container_width=True, hide_index=True,
-            column_config={
-                "Facturado (sin IVA)": st.column_config.NumberColumn(format="$%,.0f"),
-            },
-        )
+
+# ── Evolución mes a mes: ingreso vs gasto ────────────────────────────────────
+_ctb_todo = df_desde_bd(get_contabilidad())
+if len(_ctb_todo) > 0 and len(df_hist) > 0:
+    _ctb_todo = aplicar_catalogo_cuentas(_ctb_todo, _cuentas)
+    _gasto_mes = (
+        _ctb_todo[_ctb_todo["Naturaleza"] == NAT_GASTO]
+        .groupby("_Mes")["Monto_MXN"].sum().rename("Gasto_MXN")
+    )
+    _fact_mes = df_hist.groupby("_Mes")["Subtotal_MXN"].sum().rename("Facturado_MXN")
+    comp = pd.concat([_fact_mes, _gasto_mes], axis=1).dropna().reset_index()
+
+    if len(comp) > 1:
+        with st.container(border=True):
+            st.caption(
+                "Los meses donde hay tanto facturación como gasto contable clasificado. "
+                "La línea de margen es la que hay que ver: un mes puede facturar más y "
+                "dejar menos."
+            )
+            st.plotly_chart(plot_facturado_vs_gasto(comp), use_container_width=True)
 
 
 # ── Reset ─────────────────────────────────────────────────────────────────────

@@ -2,12 +2,15 @@ import streamlit as st
 import pandas as pd
 
 from core.catalogos import CATALOGO_CATEGORIAS, ETIQ_PENDIENTE, COLOR_LYON, COLOR_VENTAS
+from core.conciliacion import NATURALEZAS, TRATOS, NAT_SIN_CLASIFICAR, TRATO_AUTO
 from core.database import (
     init_db, get_clasificaciones, upsert_clasificacion, delete_clasificacion,
     log_evento, get_vendedor_clientes, upsert_vendedor_cliente,
     delete_vendedor_cliente, bulk_upsert_clasificaciones,
+    get_contabilidad, get_cuentas_contables, bulk_upsert_cuentas_contables,
 )
 from core.etl_compras import aplicar_clasificaciones
+from core.etl_contabilidad import df_desde_bd
 from core.etl_ventas import aplicar_vendedores
 from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav
 
@@ -35,10 +38,193 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
+def _render_cuentas_contables(prefijo="cta"):
+    """
+    Catálogo de cuentas contables: nombrar cada cuenta que aparece en el libro de
+    Contabilidad y decidir si cuenta como gasto del periodo.
+
+    El universo de filas sale del libro cargado, ordenado por monto descendente
+    para clasificar primero lo que más pesa. Mismo patrón que
+    `_render_tabla_editable`: `num_rows="fixed"`, diff posicional, la llave del
+    editor embebe el filtro.
+    """
+    df_ctb = df_desde_bd(get_contabilidad())
+    if len(df_ctb) == 0:
+        st.info(
+            "Todavía no hay base de contabilidad cargada, así que no hay cuentas que "
+            "nombrar. Súbela en **Gastos de Empresa**."
+        )
+        if st.button("Ir a Gastos de Empresa", key=f"{prefijo}_goto"):
+            st.switch_page("pages/5_Gastos_de_Empresa.py")
+        return
+
+    cuentas = get_cuentas_contables()
+
+    # Una fila por cuenta vista en el libro, con su peso y sus proveedores
+    # principales — sin eso el usuario no tiene con qué decidir el nombre.
+    agg = (
+        df_ctb.groupby("Cuenta")
+        .agg(Monto=("Monto_MXN", "sum"), Movimientos=("Monto_MXN", "size"))
+        .reset_index()
+    )
+    top_prov = (
+        df_ctb.groupby(["Cuenta", "Proveedor"])["Monto_MXN"].sum()
+        .reset_index().sort_values("Monto_MXN", ascending=False)
+        .groupby("Cuenta")["Proveedor"]
+        .apply(lambda s: ", ".join(s.head(3)))
+    )
+    agg["Proveedores"] = agg["Cuenta"].map(top_prov).fillna("")
+
+    agg["Nombre"] = [
+        cuentas.get(c, {}).get("nombre", "") or "" for c in agg["Cuenta"]
+    ]
+    agg["Categoria"] = [
+        cuentas.get(c, {}).get("categoria", "Otros / Sin clasificar")
+        for c in agg["Cuenta"]
+    ]
+    agg["Naturaleza"] = [
+        cuentas.get(c, {}).get("naturaleza", NAT_SIN_CLASIFICAR) for c in agg["Cuenta"]
+    ]
+    agg["Trato"] = [
+        cuentas.get(c, {}).get("trato", TRATO_AUTO) for c in agg["Cuenta"]
+    ]
+    agg = agg.sort_values("Monto", ascending=False).reset_index(drop=True)
+
+    n_pend  = int((agg["Naturaleza"] == NAT_SIN_CLASIFICAR).sum())
+    m_pend  = float(agg.loc[agg["Naturaleza"] == NAT_SIN_CLASIFICAR, "Monto"].sum())
+    if n_pend:
+        st.warning(
+            f"**{n_pend} de {len(agg)} cuentas sin clasificar** — "
+            f"${m_pend/1e6:,.2f}M del libro todavía no cuentan como gasto. "
+            f"Están hasta arriba de la tabla por monto: clasifica de mayor a menor."
+        )
+    else:
+        st.success(f"Las {len(agg)} cuentas del libro ya están clasificadas.")
+
+    st.caption(
+        "**Nombre** es cómo quieres verla en las gráficas. **Naturaleza** decide si "
+        "cuenta: solo *Gasto operativo* entra al costo y al margen; *No operativo* es "
+        "para anticipos y movimientos de balance. **Trato** es el escape: *Siempre GE* "
+        "publica la cuenta aunque cruce con el SAE, *Nunca GE* la excluye siempre."
+    )
+
+    f1, f2 = st.columns([2, 4])
+    with f1:
+        nat_filtro = st.multiselect(
+            "Filtrar por naturaleza", options=NATURALEZAS, default=[],
+            placeholder="Todas", key=f"{prefijo}_nat_filter",
+        )
+    with f2:
+        busq = st.text_input(
+            "Buscar cuenta, nombre o proveedor", placeholder="ej. 6004, fletes…",
+            key=f"{prefijo}_busq",
+        )
+
+    tabla = agg.copy()
+    if nat_filtro:
+        tabla = tabla[tabla["Naturaleza"].isin(nat_filtro)]
+    if busq:
+        _m = (
+            tabla["Cuenta"].str.contains(busq, case=False, na=False)
+            | tabla["Nombre"].str.contains(busq, case=False, na=False)
+            | tabla["Proveedores"].str.contains(busq, case=False, na=False)
+        )
+        tabla = tabla[_m]
+    tabla = tabla.reset_index(drop=True)
+
+    if len(tabla) == 0:
+        st.info("Sin cuentas para ese filtro.")
+        return
+
+    edit_df = tabla[["Cuenta", "Nombre", "Categoria", "Naturaleza", "Trato",
+                     "Monto", "Movimientos", "Proveedores"]].copy()
+
+    _editor_key = f"{prefijo}_editor_{busq}_{'-'.join(sorted(nat_filtro))}"
+
+    edited = st.data_editor(
+        edit_df,
+        use_container_width=True,
+        hide_index=True,
+        num_rows="fixed",
+        key=_editor_key,
+        column_config={
+            "Cuenta":     st.column_config.TextColumn("Cuenta", disabled=True),
+            "Nombre":     st.column_config.TextColumn(
+                "Nombre", width="medium",
+                help="Cómo se llama esta cuenta en el lenguaje del negocio.",
+            ),
+            "Categoria":  st.column_config.SelectboxColumn(
+                "Categoría", options=CATALOGO_CATEGORIAS, required=True,
+                width="medium",
+            ),
+            "Naturaleza": st.column_config.SelectboxColumn(
+                "Naturaleza", options=NATURALEZAS, required=True, width="small",
+            ),
+            "Trato":      st.column_config.SelectboxColumn(
+                "Trato", options=TRATOS, required=True, width="small",
+            ),
+            "Monto":      st.column_config.NumberColumn(
+                "Monto (MXN)", format="$%,.0f", disabled=True,
+            ),
+            "Movimientos": st.column_config.NumberColumn(
+                "Movs.", format="%d", disabled=True,
+            ),
+            "Proveedores": st.column_config.TextColumn(
+                "Principales proveedores", disabled=True, width="large",
+            ),
+        },
+        height=min(650, 45 + 36 * len(edit_df)),
+    )
+
+    if st.button("💾 Guardar catálogo de cuentas", type="primary",
+                 key=f"{prefijo}_save"):
+        filas, cambios = [], 0
+        for i in range(len(edit_df)):
+            viejo = edit_df.iloc[i]
+            nuevo = edited.iloc[i]
+            campos = ("Nombre", "Categoria", "Naturaleza", "Trato")
+            if all(str(nuevo[c]) == str(viejo[c]) for c in campos):
+                continue
+            filas.append((
+                viejo["Cuenta"],
+                str(nuevo["Nombre"] or "").strip(),
+                nuevo["Categoria"], nuevo["Naturaleza"], nuevo["Trato"], "",
+            ))
+            log_evento(
+                "cuenta_contable",
+                f"{viejo['Cuenta']} → {nuevo['Nombre']} / {nuevo['Naturaleza']}",
+            )
+            cambios += 1
+
+        if cambios:
+            bulk_upsert_cuentas_contables(filas)
+            st.session_state.pop(_editor_key, None)
+            st.success(
+                f"✅ {cambios} cuenta(s) actualizada(s). Vuelve a publicar en "
+                f"**Gastos de Empresa** para que el cambio llegue al costo operativo."
+            )
+            st.rerun()
+        else:
+            st.info("No hubo cambios que guardar.")
+
+
 if "df_compras" not in st.session_state:
-    st.warning("Carga primero el archivo de Compras para gestionar clasificaciones.")
+    st.warning(
+        "Carga el archivo de **Compras** para clasificar proveedores y vendedores."
+    )
     if st.button("Ir a Compras", use_container_width=False):
         st.switch_page("pages/1_Compras.py")
+
+    # El catálogo de cuentas contables no depende del SAE: sale del libro de
+    # Contabilidad, que vive en la BD. Se muestra solo para no dejarlo inalcanzable.
+    st.divider()
+    st.markdown("### Catálogo de cuentas contables")
+    st.caption(
+        "Esta parte sí funciona sin el archivo de Compras: las cuentas salen de la "
+        "base de Contabilidad."
+    )
+    _render_cuentas_contables("cta_solo")
     st.stop()
 
 # ── Datos base de proveedores ─────────────────────────────────────────────────
@@ -169,6 +355,7 @@ def _render_tabla_editable(base_df, prefijo):
             st.rerun()
         else:
             st.info("No hubo cambios que guardar.")
+
 
 
 def _render_asignacion(clientes_df, opciones_vend, prefijo, mostrar_ultimo=False):
@@ -347,7 +534,9 @@ def _render_tabla_vendedores(base_df, prefijo, opciones_vend_dd):
 
 
 # ── Outer tabs ────────────────────────────────────────────────────────────────
-tab_prov, tab_vend = st.tabs(["Proveedores", "Vendedores"])
+tab_prov, tab_vend, tab_cuentas = st.tabs(
+    ["Proveedores", "Vendedores", "Cuentas contables"]
+)
 
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -639,3 +828,18 @@ with tab_vend:
                 st.info("No hay clientes históricos (todos tienen actividad 2020+).")
             else:
                 _render_tabla_vendedores(clientes_hist, "vhistall", opciones_vend_dd)
+
+
+# ════════════════════════════════════════════════════════════════════════════════
+#  TAB 3 — CUENTAS CONTABLES
+# ════════════════════════════════════════════════════════════════════════════════
+with tab_cuentas:
+    st.markdown("### Catálogo de cuentas contables")
+    st.caption(
+        "Aquí el lenguaje de Contabilidad (`6000-000-00042`) se traduce al lenguaje "
+        "de Dirección («Mantenimiento y refacciones»). Las cuentas aparecen solas "
+        "conforme salen en la base que sube Contabilidad; tú las nombras y decides "
+        "cuáles cuentan como gasto del periodo. **Ninguna cuenta cuenta hasta que "
+        "alguien la clasifica.**"
+    )
+    _render_cuentas_contables("cta")

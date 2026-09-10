@@ -1057,3 +1057,168 @@ def plot_pedido_vs_facturado(df_cross):
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
     )
     return fig
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  CONTABILIDAD — conciliación con el SAE
+# ══════════════════════════════════════════════════════════════════════════════
+_COLOR_EN_SAE      = COLOR_LYON
+_COLOR_FUERA_SAE   = COLOR_GASTOS_EMPRESA
+_COLOR_POR_REVISAR = _AMBER
+_COLOR_MES_SIN_SAE = "#9E9E9E"
+
+
+def plot_conciliacion_sae(resumen):
+    """
+    Cobertura del proceso de compras: de todo lo que reportó Contabilidad, qué
+    parte pasó por el SAE y qué parte no.
+
+    `resumen` es el dict de `conciliacion.resumen_conciliacion()`. Barra apilada
+    horizontal única — el punto es la proporción, no comparar categorías entre sí,
+    y así la cifra de cobertura se lee de un vistazo.
+    """
+    tramos = [
+        ("En SAE",       resumen.get("en_sae", 0.0),       _COLOR_EN_SAE),
+        ("Fuera de SAE", resumen.get("fuera_de_sae", 0.0), _COLOR_FUERA_SAE),
+        ("Por revisar",  resumen.get("por_revisar", 0.0),  _COLOR_POR_REVISAR),
+        ("Mes sin SAE",  resumen.get("mes_sin_sae", 0.0),  _COLOR_MES_SIN_SAE),
+        ("Sin comparar", resumen.get("sin_comparar", 0.0), _COLOR_MES_SIN_SAE),
+    ]
+    tramos = [t for t in tramos if t[1] > 0]
+    if not tramos:
+        return _figura_vacia("Sin movimientos contables para el período.")
+
+    total = sum(v for _, v, _ in tramos)
+    fig = go.Figure()
+    for nombre, valor, color in tramos:
+        pct = valor / total * 100 if total else 0
+        fig.add_trace(go.Bar(
+            x=[valor], y=["Gasto contable"], orientation="h",
+            name=nombre, marker_color=color,
+            # Etiqueta dentro solo si el tramo da espacio; si no, estorba.
+            text=[f"{pct:.0f}%" if pct >= 6 else ""],
+            textposition="inside", insidetextanchor="middle",
+            textfont=dict(color="white", size=13),
+            hovertemplate=f"<b>{nombre}</b><br>$%{{x:,.0f}} MXN ({pct:.1f}%)<extra></extra>",
+        ))
+
+    en_sae   = resumen.get("en_sae", 0.0)
+    cobertura = en_sae / total * 100 if total else 0
+    fig.update_layout(
+        title=(
+            "<b>¿Cuánto del gasto pasa por el proceso de compras?</b><br><sup>"
+            f"Cobertura del SAE: <b>{cobertura:.1f}%</b> de "
+            f"${total/1e6:,.1f}M reportados por Contabilidad</sup>"
+        ),
+        barmode="stack", template="plotly_white", height=250,
+        legend=dict(orientation="h", y=-0.35, x=0),
+        xaxis=dict(tickformat=_FMT_S, title="MXN"),
+        yaxis=dict(title="", showticklabels=False),
+        margin=dict(t=85, b=70, l=30, r=30),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
+def plot_gasto_fuera_sae(df, top_n=15):
+    """
+    Proveedores a los que se les paga sin que pase por el SAE, de mayor a menor.
+
+    `df` = movimientos ya conciliados (necesita Proveedor, Monto_MXN, Estado_SAE).
+    Es la lista de a quién se le paga fuera del proceso de compras — la que
+    Dirección necesita para saber dónde no hay orden de compra de por medio.
+    """
+    if df is None or len(df) == 0 or "Estado_SAE" not in df.columns:
+        return _figura_vacia("Carga la base de contabilidad para ver este análisis.")
+
+    fuera = df[df["Estado_SAE"] == "Fuera de SAE"]
+    if len(fuera) == 0:
+        return _figura_vacia(
+            "Todo el gasto contable del período cruza con el SAE."
+        )
+
+    g = (
+        fuera.groupby("Proveedor", as_index=False)["Monto_MXN"].sum()
+        .sort_values("Monto_MXN", ascending=False)
+        .head(top_n)
+        .sort_values("Monto_MXN")          # ascendente: la barra mayor arriba
+    )
+    total_fuera = float(fuera["Monto_MXN"].sum())
+    mostrado    = float(g["Monto_MXN"].sum())
+
+    fig = go.Figure(go.Bar(
+        x=g["Monto_MXN"], y=[_trunc(p, 30) for p in g["Proveedor"]],
+        orientation="h", marker_color=COLOR_GASTOS_EMPRESA,
+        text=[f"  ${m/1e6:,.2f}M" for m in g["Monto_MXN"]],
+        textposition="outside", cliponaxis=False,
+        hovertemplate="<b>%{y}</b><br>$%{x:,.0f} MXN<extra></extra>",
+    ))
+    sub = (
+        f"Top {len(g)} de ${total_fuera/1e6:,.1f}M sin orden de compra"
+        + (f" · {mostrado/total_fuera*100:.0f}% del total mostrado"
+           if total_fuera else "")
+    )
+    fig.update_layout(
+        title=f"<b>Gasto fuera del proceso de compras</b><br><sup>{sub}</sup>",
+        template="plotly_white", height=max(320, 32 * len(g) + 140),
+        showlegend=False,
+        xaxis=dict(tickformat=_FMT_S, title="MXN"), yaxis=dict(title=""),
+        margin=dict(t=85, b=45, l=230, r=110),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
+def plot_facturado_vs_gasto(df_mes):
+    """
+    Ingreso facturado contra gasto reportado por Contabilidad, mes a mes, con el
+    margen en porcentaje sobre eje secundario.
+
+    `df_mes` necesita: _Mes (Period[M]), Facturado_MXN, Gasto_MXN.
+    """
+    if df_mes is None or len(df_mes) == 0:
+        return _figura_vacia("Sin meses comparables entre facturación y contabilidad.")
+
+    d = df_mes.sort_values("_Mes").copy()
+    etiquetas = [label_mes(m) for m in d["_Mes"]]
+    margen    = d["Facturado_MXN"] - d["Gasto_MXN"]
+    margen_pct = [
+        (m / f * 100) if f else 0.0
+        for m, f in zip(margen, d["Facturado_MXN"])
+    ]
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=etiquetas, y=d["Facturado_MXN"], name="Facturado (sin IVA)",
+        marker_color=COLOR_VENTAS,
+        hovertemplate="<b>%{x}</b><br>Facturado: $%{y:,.0f}<extra></extra>",
+    ))
+    fig.add_trace(go.Bar(
+        x=etiquetas, y=d["Gasto_MXN"], name="Gasto contable",
+        marker_color=COLOR_GASTOS_EMPRESA,
+        hovertemplate="<b>%{x}</b><br>Gasto: $%{y:,.0f}<extra></extra>",
+    ))
+    fig.add_trace(go.Scatter(
+        x=etiquetas, y=margen_pct, name="Margen %", yaxis="y2",
+        mode="lines+markers+text",
+        line=dict(color=COLOR_LYON, width=2),
+        marker=dict(size=7),
+        text=[f"{p:.0f}%" for p in margen_pct],
+        textposition="top center",
+        textfont=dict(size=11, color=COLOR_LYON),
+        hovertemplate="<b>%{x}</b><br>Margen: %{y:.1f}%<extra></extra>",
+    ))
+    fig.update_layout(
+        title=("<b>Facturado vs gasto reportado por contabilidad</b><br><sup>"
+               "Ingreso sin IVA contra el gasto del mismo mes · la línea es el "
+               "margen sobre facturación</sup>"),
+        barmode="group", template="plotly_white", height=430,
+        legend=dict(orientation="h", y=-0.18, x=0),
+        xaxis=dict(title=""),
+        yaxis=dict(tickformat=_FMT_S, title="MXN"),
+        yaxis2=dict(overlaying="y", side="right", ticksuffix="%",
+                    title="Margen", showgrid=False, zeroline=False),
+        margin=dict(t=90, b=70, l=75, r=70),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
