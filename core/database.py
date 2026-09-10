@@ -464,8 +464,7 @@ def upsert_clasificacion(proveedor, categoria, notas="", origen="usuario"):
             ON CONFLICT(proveedor_exacto_sae) DO UPDATE SET
                 categoria          = EXCLUDED.categoria,
                 notas              = EXCLUDED.notas,
-                origen             = EXCLUDED.origen,
-                fecha_modificacion = CURRENT_TIMESTAMP
+                        fecha_modificacion = CURRENT_TIMESTAMP
             """,
             (proveedor, categoria, notas, origen),
         )
@@ -493,8 +492,7 @@ def bulk_upsert_clasificaciones(rows):
         ON CONFLICT(proveedor_exacto_sae) DO UPDATE SET
             categoria          = EXCLUDED.categoria,
             notas              = EXCLUDED.notas,
-            origen             = EXCLUDED.origen,
-            fecha_modificacion = CURRENT_TIMESTAMP
+                fecha_modificacion = CURRENT_TIMESTAMP
     """
     filas = [tuple(r) for r in rows]
     with _conn() as con:
@@ -532,8 +530,7 @@ def upsert_vendedor_cliente(cliente, vendedor, origen="usuario"):
             VALUES ({_PH}, {_PH}, {_PH}, CURRENT_TIMESTAMP)
             ON CONFLICT(cliente_exacto_sae) DO UPDATE SET
                 vendedor           = EXCLUDED.vendedor,
-                origen             = EXCLUDED.origen,
-                fecha_modificacion = CURRENT_TIMESTAMP
+                        fecha_modificacion = CURRENT_TIMESTAMP
             """,
             (cliente, vendedor, origen),
         )
@@ -556,49 +553,35 @@ def log_evento(tipo, detalle=None):
         )
 
 
-def get_conceptos_gastos_empresa():
+def get_gastos_manuales():
     """
-    Distinct concepto names ever entered by hand, across all years (sorted).
+    Lo que quedó de la captura manual, que ya no existe como pantalla.
 
-    Solo `origen='manual'`: la grilla de captura no debe dejar editar (ni borrar)
-    lo que se publicó automáticamente desde Contabilidad.
+    Returns [(concepto, periodo, monto)] ordenado por monto. Se conserva para
+    poder mostrarlo y borrarlo a propósito: al quitar la captura manual estas
+    filas dejaron de sumar al costo operativo, y un monto que dejó de contar sin
+    que nadie lo vea es peor que uno de más.
     """
     with _conn() as con:
         rows = con.execute(
-            "SELECT DISTINCT concepto FROM gastos_empresa "
-            "WHERE origen = 'manual' ORDER BY concepto"
+            "SELECT concepto, periodo, monto_mxn FROM gastos_empresa "
+            "WHERE origen = 'manual' ORDER BY monto_mxn DESC"
         ).fetchall()
-    return [r[0] for r in rows]
+    return [(r[0], r[1], float(r[2])) for r in rows]
 
 
-def get_años_gastos_empresa():
-    """Sorted list of distinct years that have at least one manual entry."""
+def delete_gastos_manuales():
+    """Borra definitivamente los residuos de la captura manual. Returns n."""
     with _conn() as con:
-        rows = con.execute(
-            "SELECT DISTINCT periodo FROM gastos_empresa WHERE origen = 'manual'"
-        ).fetchall()
-    return sorted({int(r[0].split("-")[0]) for r in rows})
-
-
-def get_gastos_empresa_año(year):
-    """Returns {concepto: {mes_num(1-12): monto}} for the given year (manual only)."""
-    with _conn() as con:
-        rows = con.execute(
-            f"SELECT concepto, periodo, monto_mxn FROM gastos_empresa "
-            f"WHERE periodo LIKE {_PH} AND origen = 'manual'",
-            (f"{year}-%",),
-        ).fetchall()
-    out = {}
-    for concepto, periodo, monto in rows:
-        mes = int(periodo.split("-")[1])
-        out.setdefault(concepto, {})[mes] = float(monto)
-    return out
+        cur = con.execute("DELETE FROM gastos_empresa WHERE origen = 'manual'")
+        return cur.rowcount if cur.rowcount is not None else 0
 
 
 def get_gastos_empresa_totales_por_periodo(periodos):
     """
-    Suma manual + contabilidad a propósito: es el costo operativo total, que es
-    lo que consumen Compras, Comparativa y el reporte.
+    Solo `origen='contabilidad'`: desde que se quitó la captura manual, el libro
+    contable es la única fuente del gasto no-SAE. Filtrar aquí evita que residuos
+    de la captura vieja sigan moviendo el margen sin aparecer en ninguna pantalla.
 
     Returns {periodo_str "YYYY-MM": total_monto} for the given iterable of
     periodo strings — used to add "Gastos de Empresa" spend to charts/KPIs
@@ -611,14 +594,18 @@ def get_gastos_empresa_totales_por_periodo(periodos):
     with _conn() as con:
         rows = con.execute(
             f"SELECT periodo, SUM(monto_mxn) FROM gastos_empresa "
-            f"WHERE periodo IN ({placeholders}) GROUP BY periodo",
+            f"WHERE origen = 'contabilidad' AND periodo IN ({placeholders}) "
+            f"GROUP BY periodo",
             tuple(periodos),
         ).fetchall()
     return {r[0]: float(r[1]) for r in rows}
 
 
 def get_gastos_empresa_por_concepto(periodos):
-    """Returns {concepto: total_monto} for the given iterable of periodo strings."""
+    """
+    Returns {concepto: total_monto} for the given iterable of periodo strings.
+    Solo `origen='contabilidad'` — ver la nota en la función de arriba.
+    """
     periodos = list(periodos)
     if not periodos:
         return {}
@@ -626,7 +613,8 @@ def get_gastos_empresa_por_concepto(periodos):
     with _conn() as con:
         rows = con.execute(
             f"SELECT concepto, SUM(monto_mxn) FROM gastos_empresa "
-            f"WHERE periodo IN ({placeholders}) GROUP BY concepto "
+            f"WHERE origen = 'contabilidad' AND periodo IN ({placeholders}) "
+            f"GROUP BY concepto "
             f"ORDER BY SUM(monto_mxn) DESC",
             tuple(periodos),
         ).fetchall()
@@ -636,36 +624,12 @@ def get_gastos_empresa_por_concepto(periodos):
 _SQL_UPSERT_GE = f"""
     INSERT INTO gastos_empresa (concepto, periodo, monto_mxn, notas, origen,
                                 fecha_modificacion)
-    VALUES ({_PH}, {_PH}, {_PH}, {_PH}, {_PH}, CURRENT_TIMESTAMP)
+    VALUES ({_PH}, {_PH}, {_PH}, {_PH}, 'contabilidad', CURRENT_TIMESTAMP)
     ON CONFLICT(concepto, periodo) DO UPDATE SET
         monto_mxn          = EXCLUDED.monto_mxn,
         notas              = EXCLUDED.notas,
-        origen             = EXCLUDED.origen,
         fecha_modificacion = CURRENT_TIMESTAMP
 """
-
-
-def bulk_upsert_gastos_empresa(rows):
-    """
-    Upsert many (concepto, periodo, monto, notas) rows over a single connection.
-    Always-overwrite semantics — safe to call with a full year's grid on every
-    save (idempotent), no diffing needed given the small data volume.
-    Escribe siempre `origen='manual'`.
-    """
-    filas = [(c, p, m, n, "manual") for c, p, m, n in rows]
-    with _conn() as con:
-        con.executemany(_SQL_UPSERT_GE, filas)
-    return len(filas)
-
-
-def delete_concepto_año(concepto, year):
-    """Removes all of a concept's manual entries for a given year (row removed from the grid)."""
-    with _conn() as con:
-        con.execute(
-            f"DELETE FROM gastos_empresa WHERE concepto = {_PH} "
-            f"AND periodo LIKE {_PH} AND origen = 'manual'",
-            (concepto, f"{year}-%"),
-        )
 
 
 def reemplazar_gastos_contabilidad(rows):
@@ -679,7 +643,7 @@ def reemplazar_gastos_contabilidad(rows):
 
     `rows` = iterable de (concepto, periodo, monto, notas). Returns n escritas.
     """
-    filas = [(c, p, m, n, "contabilidad") for c, p, m, n in rows]
+    filas = [(c, p, m, n) for c, p, m, n in rows]
     with _conn() as con:
         con.execute("DELETE FROM gastos_empresa WHERE origen = 'contabilidad'")
         con.executemany(_SQL_UPSERT_GE, filas)
