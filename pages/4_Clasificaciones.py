@@ -2,7 +2,9 @@ import streamlit as st
 import pandas as pd
 
 from core.catalogos import CATALOGO_CATEGORIAS, ETIQ_PENDIENTE, COLOR_LYON, COLOR_VENTAS
-from core.conciliacion import NATURALEZAS, TRATOS, NAT_SIN_CLASIFICAR, TRATO_AUTO
+from core.conciliacion import (
+    NATURALEZAS, TRATOS, NAT_SIN_CLASIFICAR, NAT_GASTO, NAT_NO_OPERATIVO, TRATO_AUTO,
+)
 from core.database import (
     init_db, get_clasificaciones, upsert_clasificacion, delete_clasificacion,
     log_evento, get_vendedor_clientes, upsert_vendedor_cliente,
@@ -97,22 +99,67 @@ def _render_cuentas_contables(prefijo="cta"):
     n_pend  = int((agg["Naturaleza"] == NAT_SIN_CLASIFICAR).sum())
     m_pend  = float(agg.loc[agg["Naturaleza"] == NAT_SIN_CLASIFICAR, "Monto"].sum())
     if n_pend:
+        # Se distingue "no toqué nada" de "le puse nombre pero no la naturaleza",
+        # que es el error fácil: Nombre y Categoría se llenan y la cuenta sigue
+        # sin contar porque lo que decide es la columna Naturaleza.
+        _con_nombre = int(
+            ((agg["Naturaleza"] == NAT_SIN_CLASIFICAR) & (agg["Nombre"] != "")).sum()
+        )
+        _extra = (
+            f" **{_con_nombre} ya tienen nombre pero les falta marcar "
+            f"«¿Cuenta como gasto?»** — esa es la columna que decide; el nombre y "
+            f"la categoría no bastan."
+            if _con_nombre else ""
+        )
         st.warning(
             f"**{n_pend} de {len(agg)} cuentas sin clasificar en la base** — "
-            f"${m_pend/1e6:,.2f}M del libro todavía no cuentan como gasto. "
-            f"Están hasta arriba de la tabla por monto: clasifica de mayor a menor "
-            f"y **presiona Guardar** — los cambios en la tabla no se aplican solos."
+            f"${m_pend/1e6:,.2f}M del libro todavía no cuentan como gasto.{_extra}"
         )
+
+        st.caption(
+            "Atajo: en este catálogo las cuentas `6xxx` son de resultados (gasto "
+            "del periodo) y las `1xxx` de balance (anticipos). Puedes marcarlas "
+            "así de un golpe y luego corregir a mano las que no cuadren."
+        )
+        if st.button(
+            f"Marcar las {n_pend} pendientes: 6xxx = Gasto operativo · "
+            f"1xxx = No operativo",
+            key=f"{prefijo}_btn_prefijo",
+        ):
+            _pend = agg[agg["Naturaleza"] == NAT_SIN_CLASIFICAR]
+            filas = [
+                (
+                    r["Cuenta"],
+                    r["Nombre"] or r["Cuenta"],
+                    r["Categoria"],
+                    NAT_NO_OPERATIVO if str(r["Cuenta"]).startswith("1")
+                    else NAT_GASTO,
+                    r["Trato"],
+                    "",
+                )
+                for _, r in _pend.iterrows()
+            ]
+            bulk_upsert_cuentas_contables(filas)
+            log_evento("cuentas_marcadas_por_prefijo", f"{len(filas)} cuentas")
+            st.success(
+                f"✅ {len(filas)} cuenta(s) marcadas. Revísalas y ajusta las que "
+                f"no correspondan."
+            )
+            st.rerun()
     else:
         st.success(
             f"Las {len(agg)} cuentas del libro ya están clasificadas y guardadas."
         )
 
     st.caption(
-        "**Nombre** es cómo quieres verla en las gráficas. **Naturaleza** decide si "
-        "cuenta: solo *Gasto operativo* entra al costo y al margen; *No operativo* es "
-        "para anticipos y movimientos de balance. **Trato** es el escape: *Siempre GE* "
-        "publica la cuenta aunque cruce con el SAE, *Nunca GE* la excluye siempre."
+        "**«¿Cuenta como gasto?» es la única columna que decide.** Solo *Gasto "
+        "operativo* entra al costo y al margen; *No operativo* es para anticipos y "
+        "movimientos de balance. Mientras diga *Sin clasificar*, esa cuenta no "
+        "aparece en ningún número, aunque ya le hayas puesto nombre y categoría.  \n"
+        "**Nombre** es cómo la ves en las gráficas y **Categoría** solo agrupa y "
+        "colorea — ninguna de las dos hace que cuente. **Trato** es el escape: "
+        "*Siempre GE* publica la cuenta aunque cruce con el SAE, *Nunca GE* la "
+        "excluye siempre."
     )
 
     f1, f2 = st.columns([2, 4])
@@ -143,7 +190,10 @@ def _render_cuentas_contables(prefijo="cta"):
         st.info("Sin cuentas para ese filtro.")
         return
 
-    edit_df = tabla[["Cuenta", "Nombre", "Categoria", "Naturaleza", "Trato",
+    # Naturaleza va antes que Categoría a propósito: es la única columna que
+    # decide si la cuenta cuenta como gasto. Cuando iba al final y angosta, se
+    # llenaba Nombre y Categoría creyendo que con eso quedaba clasificada.
+    edit_df = tabla[["Cuenta", "Nombre", "Naturaleza", "Categoria", "Trato",
                      "Monto", "Movimientos", "Proveedores"]].copy()
 
     _editor_key = f"{prefijo}_editor_{busq}_{'-'.join(sorted(nat_filtro))}"
@@ -178,12 +228,17 @@ def _render_cuentas_contables(prefijo="cta"):
                 "Nombre", width="medium",
                 help="Cómo se llama esta cuenta en el lenguaje del negocio.",
             ),
+            "Naturaleza": st.column_config.SelectboxColumn(
+                "¿Cuenta como gasto?", options=NATURALEZAS, required=True,
+                width="medium",
+                help="LA COLUMNA QUE DECIDE. Solo «Gasto operativo» entra al "
+                     "costo y al margen. Mientras diga «Sin clasificar», el "
+                     "monto de esta cuenta no cuenta en ninguna pantalla.",
+            ),
             "Categoria":  st.column_config.SelectboxColumn(
                 "Categoría", options=CATALOGO_CATEGORIAS, required=True,
                 width="medium",
-            ),
-            "Naturaleza": st.column_config.SelectboxColumn(
-                "Naturaleza", options=NATURALEZAS, required=True, width="small",
+                help="Solo para agrupar y colorear gráficas. No decide si cuenta.",
             ),
             "Trato":      st.column_config.SelectboxColumn(
                 "Trato", options=TRATOS, required=True, width="small",
