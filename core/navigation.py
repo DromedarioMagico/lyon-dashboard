@@ -223,17 +223,42 @@ def render_sidebar_status():
     compras_loaded = "df_compras" in st.session_state
     ventas_loaded  = "df_ventas"  in st.session_state
 
+    def _archivo(clave):
+        """Nombre del archivo cargado, recortado para que quepa en el sidebar."""
+        meta   = st.session_state.get(f"df_{clave}_meta", {})
+        nombre = meta.get("archivo", "cargado")
+        return nombre if len(nombre) <= 28 else nombre[:25] + "…"
+
     if compras_loaded:
-        meta = st.session_state.get("df_compras_meta", {})
-        st.sidebar.success(f"Compras: {meta.get('archivo', 'cargado')}")
+        st.sidebar.success(f"Compras: {_archivo('compras')}")
     else:
         st.sidebar.info("Compras: no cargado")
 
     if ventas_loaded:
-        meta = st.session_state.get("df_ventas_meta", {})
-        st.sidebar.success(f"Ventas: {meta.get('archivo', 'cargado')}")
+        st.sidebar.success(f"Ventas: {_archivo('ventas')}")
     else:
         st.sidebar.info("Ventas: no cargado")
+
+    if "df_facturacion" in st.session_state:
+        _mf = st.session_state.get("df_facturacion_meta", {})
+        st.sidebar.success(f"Facturación: {_archivo('facturacion')}")
+        if _mf.get("periodo"):
+            st.sidebar.caption(f"Periodo {_mf['periodo']}")
+    else:
+        st.sidebar.info("Facturación: no cargado")
+
+    # Contabilidad no vive en session_state sino en la BD: sigue disponible
+    # aunque no se haya subido nada en esta sesión, y el estado tiene que
+    # reflejarlo o parecería que falta cargarla en cada sesión.
+    ctb = get_meta_contabilidad()
+    if ctb["n_movimientos"]:
+        _p0, _p1 = ctb["periodos"]
+        st.sidebar.success(f"Contabilidad: {ctb['n_movimientos']:,} movimientos")
+        st.sidebar.caption(
+            f"{_p0} → {_p1} · guardada {str(ctb['ultima_carga'])[:16]}"
+        )
+    else:
+        st.sidebar.info("Contabilidad: no cargada")
 
     stats = get_stats()
     st.sidebar.markdown("---")
@@ -241,18 +266,6 @@ def render_sidebar_status():
     st.sidebar.metric("Proveedores clasificados", stats["total_clasificados"])
     if stats["ultima_modificacion"]:
         st.sidebar.caption(f"Últ. modificación: {str(stats['ultima_modificacion'])[:16]}")
-
-    # Contabilidad vive en la BD, no en session_state: se reporta aquí para que se
-    # note que está disponible aunque no se haya subido nada en esta sesión.
-    ctb = get_meta_contabilidad()
-    if ctb["n_movimientos"]:
-        _p0, _p1 = ctb["periodos"]
-        st.sidebar.metric("Movimientos de contabilidad", f"{ctb['n_movimientos']:,}")
-        st.sidebar.caption(
-            f"Periodos {_p0} → {_p1} · cargado {str(ctb['ultima_carga'])[:16]}"
-        )
-    else:
-        st.sidebar.caption("Contabilidad: sin base cargada")
 
     if compras_loaded and ventas_loaded:
         st.sidebar.markdown("---")
