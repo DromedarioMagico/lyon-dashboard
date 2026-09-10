@@ -118,6 +118,25 @@ class _Conn:
             cur.execute(sql)
         return cur
 
+    def executemany(self, sql, filas):
+        """
+        Ejecuta el mismo statement para muchas filas en pocos viajes al servidor.
+
+        Con Postgres remoto esto es la diferencia entre segundos y minutos: un
+        `execute` por fila son N round-trips de red, y el libro contable trae
+        miles. `execute_batch` los agrupa en paquetes de 500.
+        """
+        filas = list(filas)
+        if not filas:
+            return 0
+        cur = self._c.cursor()
+        if _PG_URL:
+            from psycopg2.extras import execute_batch
+            execute_batch(cur, sql, filas, page_size=500)
+        else:
+            cur.executemany(sql, filas)
+        return len(filas)
+
     def executescript(self, script):
         """Run a multi-statement DDL block (no params)."""
         if _PG_URL:
@@ -477,11 +496,9 @@ def bulk_upsert_clasificaciones(rows):
             origen             = EXCLUDED.origen,
             fecha_modificacion = CURRENT_TIMESTAMP
     """
-    n = 0
+    filas = [tuple(r) for r in rows]
     with _conn() as con:
-        for prov, categoria, notas, origen in rows:
-            con.execute(sql, (prov, categoria, notas, origen))
-            n += 1
+        n = con.executemany(sql, filas)
     return n
 
 
@@ -635,12 +652,10 @@ def bulk_upsert_gastos_empresa(rows):
     save (idempotent), no diffing needed given the small data volume.
     Escribe siempre `origen='manual'`.
     """
-    n = 0
+    filas = [(c, p, m, n, "manual") for c, p, m, n in rows]
     with _conn() as con:
-        for concepto, periodo, monto, notas in rows:
-            con.execute(_SQL_UPSERT_GE, (concepto, periodo, monto, notas, "manual"))
-            n += 1
-    return n
+        con.executemany(_SQL_UPSERT_GE, filas)
+    return len(filas)
 
 
 def delete_concepto_año(concepto, year):
@@ -664,16 +679,11 @@ def reemplazar_gastos_contabilidad(rows):
 
     `rows` = iterable de (concepto, periodo, monto, notas). Returns n escritas.
     """
-    rows = list(rows)
-    n = 0
+    filas = [(c, p, m, n, "contabilidad") for c, p, m, n in rows]
     with _conn() as con:
         con.execute("DELETE FROM gastos_empresa WHERE origen = 'contabilidad'")
-        for concepto, periodo, monto, notas in rows:
-            con.execute(
-                _SQL_UPSERT_GE, (concepto, periodo, monto, notas, "contabilidad")
-            )
-            n += 1
-    return n
+        con.executemany(_SQL_UPSERT_GE, filas)
+    return len(filas)
 
 
 def get_gastos_empresa_publicados():
@@ -702,7 +712,7 @@ def reemplazar_contabilidad(rows):
     `rows` = iterable de (periodo, cuenta, proveedor, proveedor_norm, monto,
     descripcion). Returns n insertadas.
     """
-    rows = list(rows)
+    rows = [tuple(r) for r in rows]
     sql = (
         f"INSERT INTO contabilidad_movimientos "
         f"(periodo, cuenta, proveedor, proveedor_norm, monto_mxn, descripcion) "
@@ -710,8 +720,7 @@ def reemplazar_contabilidad(rows):
     )
     with _conn() as con:
         con.execute("DELETE FROM contabilidad_movimientos")
-        for r in rows:
-            con.execute(sql, tuple(r))
+        con.executemany(sql, rows)
     return len(rows)
 
 
@@ -799,11 +808,9 @@ def bulk_upsert_cuentas_contables(rows):
             notas              = EXCLUDED.notas,
             fecha_modificacion = CURRENT_TIMESTAMP
     """
-    n = 0
+    filas = [tuple(r) for r in rows]
     with _conn() as con:
-        for r in rows:
-            con.execute(sql, tuple(r))
-            n += 1
+        n = con.executemany(sql, filas)
     return n
 
 
