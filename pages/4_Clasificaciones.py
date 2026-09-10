@@ -91,16 +91,22 @@ def _render_cuentas_contables(prefijo="cta"):
     ]
     agg = agg.sort_values("Monto", ascending=False).reset_index(drop=True)
 
+    # Estas dos cifras salen del catálogo GUARDADO, no de lo que hay en pantalla:
+    # editar la tabla no escribe nada hasta presionar Guardar, y sin este contador
+    # no había forma de distinguir "no guardé" de "guardé y no sirvió".
     n_pend  = int((agg["Naturaleza"] == NAT_SIN_CLASIFICAR).sum())
     m_pend  = float(agg.loc[agg["Naturaleza"] == NAT_SIN_CLASIFICAR, "Monto"].sum())
     if n_pend:
         st.warning(
-            f"**{n_pend} de {len(agg)} cuentas sin clasificar** — "
+            f"**{n_pend} de {len(agg)} cuentas sin clasificar en la base** — "
             f"${m_pend/1e6:,.2f}M del libro todavía no cuentan como gasto. "
-            f"Están hasta arriba de la tabla por monto: clasifica de mayor a menor."
+            f"Están hasta arriba de la tabla por monto: clasifica de mayor a menor "
+            f"y **presiona Guardar** — los cambios en la tabla no se aplican solos."
         )
     else:
-        st.success(f"Las {len(agg)} cuentas del libro ya están clasificadas.")
+        st.success(
+            f"Las {len(agg)} cuentas del libro ya están clasificadas y guardadas."
+        )
 
     st.caption(
         "**Nombre** es cómo quieres verla en las gráficas. **Naturaleza** decide si "
@@ -142,6 +148,24 @@ def _render_cuentas_contables(prefijo="cta"):
 
     _editor_key = f"{prefijo}_editor_{busq}_{'-'.join(sorted(nat_filtro))}"
 
+    # Streamlit conserva lo tecleado en el editor dentro de la sesión, así que
+    # una tabla llena de cambios se ve idéntica esté guardada o no. Se avisa.
+    _pendientes = len(
+        st.session_state.get(_editor_key, {}).get("edited_rows", {}) or {}
+    )
+    _guardar_arriba = False
+    if _pendientes:
+        st.error(
+            f"**{_pendientes} fila(s) con cambios SIN GUARDAR.** Presiona "
+            f"«Guardar» o se pierden al salir de la página."
+        )
+        # El botón de abajo queda fuera de pantalla con 20 cuentas; este es el
+        # mismo guardado, alcanzable sin buscarlo. Sin rerun: el bloque de
+        # guardado corre más abajo en esta misma pasada, ya con `edited`.
+        _guardar_arriba = st.button(
+            "💾 Guardar ahora", type="primary", key=f"{prefijo}_save_top",
+        )
+
     edited = st.data_editor(
         edit_df,
         use_container_width=True,
@@ -178,7 +202,7 @@ def _render_cuentas_contables(prefijo="cta"):
     )
 
     if st.button("💾 Guardar catálogo de cuentas", type="primary",
-                 key=f"{prefijo}_save"):
+                 key=f"{prefijo}_save") or _guardar_arriba:
         filas, cambios = [], 0
         for i in range(len(edit_df)):
             viejo = edit_df.iloc[i]

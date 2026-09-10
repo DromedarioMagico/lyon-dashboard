@@ -108,7 +108,11 @@ def _render_conciliacion(df_ctb, meta_bd):
                 f"**{res['n_cuentas_sin_clasificar']} cuenta(s) contable(s) sin "
                 f"clasificar** — ${res['sin_clasificar']/1e6:,.2f}M del libro todavía "
                 f"**no cuentan como gasto**. Nómbralas y márcalas en el catálogo para "
-                f"que entren al costo operativo."
+                f"que entren al costo operativo.\n\n"
+                f"Si ya las marcaste y sigue apareciendo este aviso: los cambios de la "
+                f"tabla del catálogo **no se guardan solos**, hay que presionar "
+                f"«Guardar catálogo de cuentas». El propio catálogo te dice cuántas "
+                f"están guardadas en la base."
             )
         with b2:
             st.markdown("<div style='padding-top:.6rem'></div>", unsafe_allow_html=True)
