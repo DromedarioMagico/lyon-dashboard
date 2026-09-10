@@ -3,16 +3,18 @@ Plotly figure generators — ported from the standalone Colab scripts.
 Each function receives a DataFrame (already filtered) + parameters
 and returns a go.Figure ready for st.plotly_chart().
 """
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
 from core.catalogos import (
     PALETA_CATEGORIAS, ETIQ_PENDIENTE, PALETA_PRINCIPAL, label_mes,
-    COLOR_LYON, COLOR_GASTOS_EMPRESA,
+    COLOR_LYON, COLOR_VENTAS, COLOR_GASTOS_EMPRESA,
 )
 
-_RED = "#C00000"
+_RED   = "#C00000"
 _GREEN = "#548235"
+_AMBER = "#E97132"
 
 _TOP_N_PROVEEDORES    = 10
 _TOP_N_FACTURAS       = 10
@@ -814,5 +816,244 @@ def plot_top_facturas(df, top_n=_TOP_N_FACTURAS):
         ),
         height=460, margin=dict(t=90, b=20, l=10, r=10),
         paper_bgcolor='rgba(0,0,0,0)',
+    )
+    return fig
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  FACTURACIÓN — el tramo pedido → factura (pages/6_Facturacion.py)
+# ══════════════════════════════════════════════════════════════════════════════
+
+_SEGMENTOS_ORDEN = [
+    "VENTA PRIVADA", "VENTA FILIAL", "VENTA PRIVADA/GOBIERNO",
+    "VENTA GOBIERNO (CONALITEG)", "VENTA VARIOS (RENTA)",
+]
+_FMT_S = "$.2s"   # eje monetario compacto: $9.4M, $500k
+
+
+def _figura_vacia(mensaje):
+    fig = go.Figure()
+    fig.add_annotation(text=mensaje, showarrow=False,
+                       font=dict(size=13, color="#6B7280"), x=0.5, y=0.5)
+    fig.update_layout(
+        template="plotly_white", height=260,
+        xaxis=dict(visible=False), yaxis=dict(visible=False),
+        margin=dict(t=30, b=20, l=20, r=20),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
+def plot_embudo_facturacion(pedidos, facturado, pendiente):
+    """
+    Embudo del periodo pedido → factura, como waterfall.
+
+    `pedidos` = Pedidos SAE llevados a base sin IVA (o None si Ventas no está
+    cargado — entonces se muestra solo Facturado + Pendiente por facturar).
+    """
+    if pedidos and pedidos > 0:
+        gap      = pedidos - facturado
+        labels   = ["Pedidos SAE<br>(sin IVA)", "Sin facturar", "Facturado"]
+        values   = [pedidos, -gap, 0]
+        measures = ["absolute", "relative", "total"]
+        texts    = [f"${pedidos/1e6:,.2f}M", f"-${gap/1e6:,.2f}M", f"${facturado/1e6:,.2f}M"]
+        conv     = facturado / pedidos * 100 if pedidos else 0
+        sub      = f"Conversión pedido → factura: <b>{conv:.1f}%</b> · base sin IVA"
+    else:
+        labels   = ["Facturado", "Pendiente<br>por facturar"]
+        values   = [facturado, pendiente]
+        measures = ["absolute", "relative"]
+        texts    = [f"${facturado/1e6:,.2f}M", f"+${pendiente/1e6:,.2f}M"]
+        sub      = "Carga Ventas (Pedidos SAE) para ver la conversión pedido → factura"
+
+    fig = go.Figure(go.Waterfall(
+        x=labels, y=values, measure=measures, text=texts, textposition="outside",
+        connector=dict(line=dict(color="#E5E7EB", width=1)),
+        increasing=dict(marker=dict(color=COLOR_VENTAS)),
+        decreasing=dict(marker=dict(color=_AMBER)),
+        totals=dict(marker=dict(color=COLOR_LYON)),
+        hovertemplate="<b>%{x}</b><br>$%{y:,.0f} MXN<extra></extra>",
+    ))
+    fig.update_layout(
+        title=f"<b>Embudo del periodo — pedido → factura</b><br><sup>{sub}</sup>",
+        template="plotly_white", height=380, showlegend=False,
+        yaxis=dict(tickformat=_FMT_S, title="MXN"), xaxis_title="",
+        margin=dict(t=85, b=40, l=75, r=40),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
+def plot_facturacion_segmento(df_hist, meses_sel=None):
+    """
+    Facturación por segmento — barras apiladas por mes del año (desde HISTORICO,
+    importes sin IVA). CONALITEG puede ser negativo en un mes sólo de
+    penalizaciones → `barmode="relative"` lo apila bajo el cero.
+    `df_hist` cols: Segmento, _Mes, Subtotal_MXN.
+    """
+    if df_hist is None or df_hist.empty:
+        return _figura_vacia("Sin datos en la hoja HISTORICO")
+
+    d = df_hist.copy()
+    if meses_sel:
+        d = d[d["_Mes"].isin(meses_sel)]
+    d = d[d["Subtotal_MXN"] != 0]
+    if d.empty:
+        return _figura_vacia("Sin facturación en los meses seleccionados")
+
+    meses = sorted(d["_Mes"].unique())
+    x = [label_mes(m) for m in meses]
+
+    fig = go.Figure()
+    for i, seg in enumerate(_SEGMENTOS_ORDEN):
+        sub = d[d["Segmento"] == seg].set_index("_Mes")
+        y = [float(sub.loc[m, "Subtotal_MXN"]) if m in sub.index else 0.0 for m in meses]
+        if not any(v != 0 for v in y):
+            continue
+        fig.add_trace(go.Bar(
+            x=x, y=y, name=seg.replace("VENTA ", "").title(),
+            marker=dict(color=PALETA_PRINCIPAL[i % len(PALETA_PRINCIPAL)],
+                        line=dict(color="white", width=1)),
+            hovertemplate=f"<b>{seg}</b><br>%{{x}}: $%{{y:,.0f}} MXN<extra></extra>",
+        ))
+
+    fig.update_layout(
+        title=("<b>Facturación por segmento</b><br><sup>Importes sin IVA · "
+               "CONALITEG puede quedar negativo (mes sólo con penalizaciones)</sup>"),
+        barmode="relative", template="plotly_white", height=440,
+        legend=dict(orientation="h", y=-0.18, x=0, font=dict(size=11)),
+        yaxis=dict(tickformat=_FMT_S, title="MXN"), xaxis_title="",
+        margin=dict(t=80, b=95, l=75, r=20),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
+def plot_fugas_cliente(df_dev):
+    """
+    Penalizaciones y descuentos por cliente (sin IVA). CONALITEG a tasa 0 %
+    se resalta en el subtítulo. `df_dev` cols: Cliente_Display, Tipo,
+    Subtotal_MXN, Tasa_Cero.
+    """
+    if df_dev is None or df_dev.empty:
+        return _figura_vacia("Sin devoluciones ni descuentos en el periodo")
+
+    d = (df_dev.groupby(["Cliente_Display", "Tipo"], as_index=False)["Subtotal_MXN"]
+             .sum())
+    orden_cli = (d.groupby("Cliente_Display")["Subtotal_MXN"].sum()
+                  .sort_values().index.tolist())
+
+    fig = go.Figure()
+    for tipo, color in [("Penalizacion", _RED), ("Descuento", _AMBER)]:
+        sub = d[d["Tipo"] == tipo]
+        if sub.empty:
+            continue
+        sub = sub.set_index("Cliente_Display").reindex(orden_cli).dropna(subset=["Subtotal_MXN"])
+        fig.add_trace(go.Bar(
+            x=sub["Subtotal_MXN"], y=sub.index, orientation="h",
+            name=tipo, marker_color=color,
+            hovertemplate=f"<b>%{{y}}</b><br>{tipo}: $%{{x:,.0f}} MXN<extra></extra>",
+        ))
+
+    total  = df_dev["Subtotal_MXN"].sum()
+    conali = df_dev.loc[df_dev["Tasa_Cero"], "Subtotal_MXN"].sum()
+    fig.update_layout(
+        title=(f"<b>Fugas del periodo — penalizaciones y descuentos</b><br><sup>"
+               f"Total ${total/1e6:,.2f}M · de los cuales ${conali/1e6:,.2f}M son "
+               f"CONALITEG a tasa 0 %</sup>"),
+        barmode="stack", template="plotly_white",
+        height=max(300, 44 * len(orden_cli) + 140),
+        legend=dict(orientation="h", y=-0.22, x=0),
+        xaxis=dict(tickformat=_FMT_S, title="MXN"), yaxis=dict(title=""),
+        margin=dict(t=90, b=70, l=190, r=40),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
+def plot_aging_remisiones(df_rem):
+    """
+    Pendiente por facturar por antigüedad, separando lo que cae fuera del mes
+    del archivo. `df_rem` cols: Antiguedad_Dias, Subtotal_MXN, Fuera_De_Mes,
+    Revisar.
+    """
+    if df_rem is None or df_rem.empty:
+        return _figura_vacia("Sin remisiones pendientes")
+
+    def _bucket(x):
+        if x <= 30:  return "0–30 días"
+        if x <= 60:  return "31–60 días"
+        if x <= 90:  return "61–90 días"
+        return "90+ días"
+
+    d = df_rem.copy()
+    d["Bucket"] = d["Antiguedad_Dias"].apply(_bucket)
+    orden  = ["0–30 días", "31–60 días", "61–90 días", "90+ días"]
+    normal = d[~d["Fuera_De_Mes"]].groupby("Bucket")["Subtotal_MXN"].sum()
+    fuera  = d[d["Fuera_De_Mes"]].groupby("Bucket")["Subtotal_MXN"].sum()
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=orden, y=[float(normal.get(b, 0.0)) for b in orden],
+        name="En regla", marker_color=COLOR_LYON,
+        hovertemplate="<b>%{x}</b><br>$%{y:,.0f} MXN<extra></extra>",
+    ))
+    if bool(d["Fuera_De_Mes"].any()):
+        fig.add_trace(go.Bar(
+            x=orden, y=[float(fuera.get(b, 0.0)) for b in orden],
+            name="Fecha fuera del mes", marker_color=_AMBER,
+            hovertemplate="<b>%{x}</b><br>$%{y:,.0f} MXN (fuera de mes)<extra></extra>",
+        ))
+
+    n_fuera = int(df_rem["Fuera_De_Mes"].sum())
+    n_rev   = int(df_rem["Revisar"].sum())
+    partes  = []
+    if n_fuera: partes.append(f"{n_fuera} con fecha fuera del mes")
+    if n_rev:   partes.append(f"{n_rev} marcada(s) *** REVISAR ***")
+    sub = " · ".join(partes) if partes else "Todas dentro del mes del archivo"
+
+    fig.update_layout(
+        title=(f"<b>Pendiente por facturar — {len(df_rem)} remisiones, "
+               f"${df_rem['Subtotal_MXN'].sum()/1e6:,.2f}M sin IVA</b>"
+               f"<br><sup>{sub}</sup>"),
+        barmode="stack", template="plotly_white", height=380,
+        legend=dict(orientation="h", y=-0.16, x=0),
+        yaxis=dict(tickformat=_FMT_S, title="MXN"), xaxis=dict(title="Antigüedad"),
+        margin=dict(t=85, b=70, l=75, r=20),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
+def plot_pedido_vs_facturado(df_cross):
+    """
+    Pedido SAE (sin IVA) vs Facturado (sin IVA) por cliente, base para la
+    tabla cruzada del bloque 5. `df_cross` cols: Cliente, Pedido_MXN,
+    Facturado_MXN.
+    """
+    if df_cross is None or df_cross.empty:
+        return _figura_vacia("Carga Ventas para cruzar pedido vs facturado")
+
+    d = df_cross.sort_values("Facturado_MXN")
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=d["Pedido_MXN"], y=d["Cliente"], orientation="h",
+        name="Pedido SAE (sin IVA)", marker_color=COLOR_LYON,
+        hovertemplate="<b>%{y}</b><br>Pedido: $%{x:,.0f}<extra></extra>",
+    ))
+    fig.add_trace(go.Bar(
+        x=d["Facturado_MXN"], y=d["Cliente"], orientation="h",
+        name="Facturado (sin IVA)", marker_color=COLOR_VENTAS,
+        hovertemplate="<b>%{y}</b><br>Facturado: $%{x:,.0f}<extra></extra>",
+    ))
+    fig.update_layout(
+        title=("<b>Pedido vs facturado por cliente</b><br><sup>"
+               "Base sin IVA · la brecha es pedido no facturado en el periodo</sup>"),
+        barmode="group", template="plotly_white",
+        height=max(340, 40 * len(d) + 140),
+        legend=dict(orientation="h", y=-0.18, x=0),
+        xaxis=dict(tickformat=_FMT_S, title="MXN"), yaxis=dict(title=""),
+        margin=dict(t=80, b=70, l=190, r=40),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
     )
     return fig

@@ -117,6 +117,11 @@ def cargar_ventas(uploaded_file):
     df["Cliente_Display"] = df["Cliente_Nombre"].apply(abreviar_cliente)
     df["_Mes"] = df["Fecha"].dt.to_period("M")
 
+    # Código numérico de cliente del SAE — llave de cruce con Facturación
+    # (`pages/6_Facturacion.py`). Columna opcional: exports viejos no la traen.
+    if "Cliente" in df.columns:
+        df["Cliente_Codigo"] = pd.to_numeric(df["Cliente"], errors="coerce").astype("Int64")
+
     return df, warnings_list
 
 
