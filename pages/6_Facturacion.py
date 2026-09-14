@@ -5,10 +5,9 @@ import streamlit as st
 
 from core.catalogos import COLOR_LYON, COLOR_GASTOS_EMPRESA
 from core.conciliacion import (
-    aplicar_catalogo_cuentas, conciliar_con_sae, resumen_conciliacion, NAT_GASTO,
+    contabilidad_de_sesion, resumen_conciliacion, NAT_GASTO,
 )
-from core.database import init_db, get_contabilidad, get_cuentas_contables
-from core.etl_contabilidad import df_desde_bd
+from core.database import init_db
 from core.etl_facturacion import cargar_facturacion
 from core.navigation import (
     render_sidebar_search, render_sidebar_status, inject_custom_css,
@@ -131,17 +130,16 @@ pendiente_periodo = float(df_rem["Subtotal_MXN"].sum())
 # ── Gasto contable del mismo periodo ──────────────────────────────────────────
 # Solo cuentas marcadas como gasto operativo: los movimientos de balance
 # (anticipos) inflarían el costo y distorsionarían el margen.
-_periodo_str = f"{periodo.year}-{periodo.month:02d}" if periodo is not None else None
-_df_ctb  = df_desde_bd(get_contabilidad([_periodo_str] if _periodo_str else None))
-_cuentas = get_cuentas_contables()
+_conc = contabilidad_de_sesion()
 
-gasto_periodo   = 0.0
+gasto_periodo    = 0.0
 gasto_por_cuenta = {}
-res_ctb         = None
-if len(_df_ctb) > 0:
-    _ctb = aplicar_catalogo_cuentas(_df_ctb, _cuentas)
-    res_ctb = resumen_conciliacion(conciliar_con_sae(_ctb, st.session_state.get("df_compras")))
-    _op = _ctb[_ctb["Naturaleza"] == NAT_GASTO]
+res_ctb          = None
+if _conc is not None:
+    res_ctb = resumen_conciliacion(_conc)
+    _op = _conc[_conc["Naturaleza"] == NAT_GASTO]
+    if periodo is not None:
+        _op = _op[_op["_Mes"] == periodo]
     gasto_periodo = float(_op["Monto_MXN"].sum())
     gasto_por_cuenta = (
         _op.groupby("Cuenta_Nombre")["Monto_MXN"].sum()
@@ -356,11 +354,9 @@ with st.container(border=True):
         )
 
 # ── Evolución mes a mes: ingreso vs gasto ────────────────────────────────────
-_ctb_todo = df_desde_bd(get_contabilidad())
-if len(_ctb_todo) > 0 and len(df_hist) > 0:
-    _ctb_todo = aplicar_catalogo_cuentas(_ctb_todo, _cuentas)
+if _conc is not None and len(df_hist) > 0:
     _gasto_mes = (
-        _ctb_todo[_ctb_todo["Naturaleza"] == NAT_GASTO]
+        _conc[_conc["Naturaleza"] == NAT_GASTO]
         .groupby("_Mes")["Monto_MXN"].sum().rename("Gasto_MXN")
     )
     _fact_mes = df_hist.groupby("_Mes")["Subtotal_MXN"].sum().rename("Facturado_MXN")

@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import streamlit as st
-from core.database import get_stats, get_meta_contabilidad
+from core.database import get_stats
 from core.catalogos import label_mes
 
 
@@ -247,16 +247,11 @@ def render_sidebar_status():
     else:
         st.sidebar.info("Facturación: no cargado")
 
-    # Contabilidad no vive en session_state sino en la BD: sigue disponible
-    # aunque no se haya subido nada en esta sesión, y el estado tiene que
-    # reflejarlo o parecería que falta cargarla en cada sesión.
-    ctb = get_meta_contabilidad()
-    if ctb["n_movimientos"]:
-        _p0, _p1 = ctb["periodos"]
-        st.sidebar.success(f"Contabilidad: {ctb['n_movimientos']:,} movimientos")
-        st.sidebar.caption(
-            f"{_p0} → {_p1} · guardada {str(ctb['ultima_carga'])[:16]}"
-        )
+    if "df_contabilidad" in st.session_state:
+        _mc = st.session_state.get("df_contabilidad_meta", {})
+        st.sidebar.success(f"Contabilidad: {_archivo('contabilidad')}")
+        if _mc.get("periodos"):
+            st.sidebar.caption(f"Periodos {_mc['periodos']}")
     else:
         st.sidebar.info("Contabilidad: no cargada")
 

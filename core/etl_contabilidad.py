@@ -1,9 +1,10 @@
 """
 ETL de la base consolidada de Contabilidad.
 
-A diferencia del SAE, este archivo lo mantiene el usuario: Contabilidad le manda una
-sola base con todos los movimientos del año y él la re-sube conforme la actualizan.
-Cada carga reemplaza a la anterior por completo.
+Contabilidad manda una sola base con todos los movimientos del año. Igual que el
+SAE, **no se persiste**: vive en `st.session_state.df_contabilidad` y se vuelve a
+subir en cada sesión. Lo único que se guarda son las decisiones del usuario sobre
+el catálogo de cuentas (`cuentas_contables`).
 
 Sin dependencias de Streamlit. `cargar_contabilidad(f) -> (df, warnings)`.
 """
@@ -90,50 +91,6 @@ def _parse_mes(valor):
     if anio < 100:
         anio += 2000
     return pd.Period(year=anio, month=mes, freq="M")
-
-
-def filas_para_bd(df):
-    """
-    df del ETL → filas para `database.reemplazar_contabilidad`.
-    Returns list[(periodo, cuenta, proveedor, proveedor_norm, monto, descripcion)].
-    """
-    # zip sobre columnas y no itertuples: itertuples renombra los campos que
-    # empiezan con guion bajo (`_Mes`) porque no son identificadores válidos.
-    return [
-        (
-            f"{mes.year}-{mes.month:02d}",
-            cuenta, prov, norm, float(monto), desc,
-        )
-        for mes, cuenta, prov, norm, monto, desc in zip(
-            df["_Mes"], df["Cuenta"], df["Proveedor"],
-            df["Proveedor_Norm"], df["Monto_MXN"], df["Descripcion"],
-        )
-    ]
-
-
-def df_desde_bd(rows):
-    """
-    Filas de `database.get_contabilidad()` → el mismo DataFrame que produce
-    `cargar_contabilidad`, para que las páginas no distingan entre el libro recién
-    subido y el que ya estaba guardado.
-    """
-    if not rows:
-        return pd.DataFrame(
-            columns=["Mes_Raw", "_Mes", "Cuenta", "Proveedor", "Proveedor_Norm",
-                     "Monto_MXN", "Descripcion"]
-        )
-
-    df = pd.DataFrame(rows)
-    df["_Mes"] = df["periodo"].map(lambda p: pd.Period(p, freq="M"))
-    return pd.DataFrame({
-        "Mes_Raw":        df["periodo"],
-        "_Mes":           df["_Mes"],
-        "Cuenta":         df["cuenta"],
-        "Proveedor":      df["proveedor"],
-        "Proveedor_Norm": df["proveedor_norm"],
-        "Monto_MXN":      df["monto_mxn"].astype(float),
-        "Descripcion":    df["descripcion"],
-    })
 
 
 def _texto_o(serie, defecto):

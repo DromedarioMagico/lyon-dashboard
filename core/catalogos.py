@@ -16,6 +16,10 @@ CATALOGO_CATEGORIAS = [
     "Otros gastos de operación",
     "Proyectos Especiales",
     "Persona física",
+    # Va al final (antes del centinela) a propósito: PALETA_CATEGORIAS asigna
+    # color por posición, así que insertar a media lista recolorea todo lo que
+    # sigue. Solo la usa la cuenta contable 6002-000-00000.
+    "Nómina",
     "Otros / Sin clasificar",
 ]
 

@@ -11,15 +11,11 @@ from core.catalogos import (
     PALETA_CATEGORIAS, PALETA_PRINCIPAL, label_mes,
 )
 from core.conciliacion import (
-    conciliar_con_sae, aplicar_catalogo_cuentas, marcar_publicables,
-    resumen_conciliacion,
+    contabilidad_de_sesion, resumen_conciliacion, gasto_empresa_por_concepto,
+    gasto_empresa_por_periodo,
 )
-from core.database import (
-    init_db, get_gastos_empresa_totales_por_periodo, get_gastos_empresa_por_concepto,
-    get_contabilidad, get_cuentas_contables,
-)
+from core.database import init_db
 from core.etl_compras import cargar_compras, aplicar_clasificaciones
-from core.etl_contabilidad import df_desde_bd
 from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav, breadcrumb, render_periodo_filter, parse_semana_x
 from core.plots import (
     plot_barras_categorias,
@@ -1342,25 +1338,18 @@ k5.markdown(_kpi("Proveedores",      f"{prov_unicos:,}",           _BLUE),  unsa
 k6.markdown(_kpi("Cobertura Categ.", f"{pct_cobertura:.1f}%",      _BLUE),  unsafe_allow_html=True)
 
 # ── Gastos de Empresa (nómina, etc. — no pasan por el SAE) ────────────────────
-_periodos_str      = [f"{p.year}-{p.month:02d}" for p in meses_sel]
-_ge_por_periodo    = get_gastos_empresa_totales_por_periodo(_periodos_str)
-gasto_empresa      = sum(_ge_por_periodo.values())
-gasto_con_empresa  = gasto_total + gasto_empresa
-_ge_por_concepto   = get_gastos_empresa_por_concepto(_periodos_str) if gasto_empresa > 0 else {}
+# El libro contable vive en la sesión (no se persiste); el gasto se calcula al
+# vuelo a partir de él y del catálogo de cuentas.
+_periodos_str = [f"{p.year}-{p.month:02d}" for p in meses_sel]
+_conc         = contabilidad_de_sesion()
+_res_ctb      = resumen_conciliacion(_conc) if _conc is not None else None
 
-# ── Contabilidad: cobertura del SAE y gasto fuera del proceso de compras ──────
-# El libro contable vive en la BD (no en session_state), así que está disponible
-# aunque el usuario no haya pasado por Gastos de Empresa en esta sesión.
-_df_ctb = df_desde_bd(get_contabilidad(_periodos_str))
-_conc   = None
-_res_ctb = None
-if len(_df_ctb) > 0:
-    _conc = marcar_publicables(
-        aplicar_catalogo_cuentas(
-            conciliar_con_sae(_df_ctb, df_full), get_cuentas_contables()
-        )
-    )
-    _res_ctb = resumen_conciliacion(_conc)
+_ge_por_periodo   = gasto_empresa_por_periodo(_conc, meses_sel) if _conc is not None else {}
+gasto_empresa     = sum(_ge_por_periodo.values())
+gasto_con_empresa = gasto_total + gasto_empresa
+_ge_por_concepto  = (
+    gasto_empresa_por_concepto(_conc, meses_sel) if gasto_empresa > 0 else {}
+)
 
 if gasto_empresa > 0 or _res_ctb:
     st.markdown("#### 💼 Costo Operativo Total")

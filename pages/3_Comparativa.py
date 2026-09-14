@@ -6,8 +6,11 @@ from core.catalogos import (
     COLOR_LYON, COLOR_VENTAS, COLOR_GASTOS_EMPRESA, PALETA_CATEGORIAS, ETIQ_PENDIENTE,
     CATALOGO_CATEGORIAS, label_mes,
 )
+from core.conciliacion import (
+    contabilidad_de_sesion, gasto_empresa_por_concepto, gasto_empresa_por_periodo,
+)
 from core.database import (
-    init_db, get_gastos_empresa_totales_por_periodo, get_gastos_empresa_por_concepto,
+    init_db,
 )
 from core.etl_compras import aplicar_clasificaciones
 from core.etl_ventas import aplicar_vendedores
@@ -194,9 +197,12 @@ mes_df["Margen_pct"] = mes_df.apply(
 
 # ── Gastos de Empresa (nómina, etc. — no pasan por el SAE) ─────────────────────
 _periodos_str      = [f"{p.year}-{p.month:02d}" for p in meses_sel]
-_ge_por_periodo    = get_gastos_empresa_totales_por_periodo(_periodos_str)
+_conc              = contabilidad_de_sesion()
+_ge_por_periodo    = gasto_empresa_por_periodo(_conc, meses_sel) if _conc is not None else {}
 gasto_empresa_total = sum(_ge_por_periodo.values())
-_ge_por_concepto_cmp = get_gastos_empresa_por_concepto(_periodos_str) if gasto_empresa_total > 0 else {}
+_ge_por_concepto_cmp = (
+    gasto_empresa_por_concepto(_conc, meses_sel) if gasto_empresa_total > 0 else {}
+)
 
 mes_df["Gastos_Empresa"] = mes_df["_Mes"].apply(
     lambda p: _ge_por_periodo.get(f"{p.year}-{p.month:02d}", 0.0)

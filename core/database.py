@@ -186,7 +186,7 @@ _DB_READY = False
 
 _TABLAS = (
     "proveedores_clasificacion", "vendedor_cliente", "eventos",
-    "gastos_empresa", "contabilidad_movimientos", "cuentas_contables",
+    "cuentas_contables",
 )
 
 
@@ -286,29 +286,6 @@ def init_db(force=False):
                     tipo      TEXT NOT NULL,
                     detalle   TEXT
                 );
-                CREATE TABLE IF NOT EXISTS gastos_empresa (
-                    concepto           TEXT NOT NULL,
-                    periodo            TEXT NOT NULL,
-                    monto_mxn          NUMERIC NOT NULL DEFAULT 0,
-                    notas              TEXT DEFAULT '',
-                    fecha_creacion     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    PRIMARY KEY (concepto, periodo)
-                );
-                CREATE TABLE IF NOT EXISTS contabilidad_movimientos (
-                    id             BIGSERIAL PRIMARY KEY,
-                    periodo        TEXT NOT NULL,
-                    cuenta         TEXT NOT NULL,
-                    proveedor      TEXT NOT NULL,
-                    proveedor_norm TEXT NOT NULL,
-                    monto_mxn      NUMERIC NOT NULL DEFAULT 0,
-                    descripcion    TEXT DEFAULT '',
-                    fecha_carga    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-                CREATE INDEX IF NOT EXISTS idx_ctb_periodo
-                    ON contabilidad_movimientos(periodo);
-                CREATE INDEX IF NOT EXISTS idx_ctb_cuenta
-                    ON contabilidad_movimientos(cuenta);
                 CREATE TABLE IF NOT EXISTS cuentas_contables (
                     cuenta             TEXT PRIMARY KEY,
                     nombre             TEXT NOT NULL DEFAULT '',
@@ -343,29 +320,6 @@ def init_db(force=False):
                     tipo      TEXT NOT NULL,
                     detalle   TEXT
                 );
-                CREATE TABLE IF NOT EXISTS gastos_empresa (
-                    concepto           TEXT NOT NULL,
-                    periodo            TEXT NOT NULL,
-                    monto_mxn          REAL NOT NULL DEFAULT 0,
-                    notas              TEXT DEFAULT '',
-                    fecha_creacion     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    PRIMARY KEY (concepto, periodo)
-                );
-                CREATE TABLE IF NOT EXISTS contabilidad_movimientos (
-                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-                    periodo        TEXT NOT NULL,
-                    cuenta         TEXT NOT NULL,
-                    proveedor      TEXT NOT NULL,
-                    proveedor_norm TEXT NOT NULL,
-                    monto_mxn      REAL NOT NULL DEFAULT 0,
-                    descripcion    TEXT DEFAULT '',
-                    fecha_carga    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-                CREATE INDEX IF NOT EXISTS idx_ctb_periodo
-                    ON contabilidad_movimientos(periodo);
-                CREATE INDEX IF NOT EXISTS idx_ctb_cuenta
-                    ON contabilidad_movimientos(cuenta);
                 CREATE TABLE IF NOT EXISTS cuentas_contables (
                     cuenta             TEXT PRIMARY KEY,
                     nombre             TEXT NOT NULL DEFAULT '',
@@ -381,9 +335,22 @@ def init_db(force=False):
     # agrupan, dos sesiones concurrentes pueden tomar locks sobre las mismas
     # tablas en distinto orden y provocar un deadlock en Postgres.
     _migrar_maquila_externa()
-    _migrar_origen_gastos()
+    _migrar_quitar_tablas_derivadas()
 
     _DB_READY = True
+
+
+# El libro contable dejó de persistirse (se re-sube cada sesión) y con él el
+# gasto que se derivaba de ese libro. Estas tablas quedaron sin uso: se tiran
+# para no dejar información financiera guardada que la app ya no consulta.
+_TABLAS_OBSOLETAS = ("contabilidad_movimientos", "gastos_empresa")
+
+
+def _migrar_quitar_tablas_derivadas():
+    with _conn() as con:
+        sobrantes = set(_TABLAS_OBSOLETAS) & _tablas_existentes(con)
+        for tabla in sobrantes:
+            con.execute(f"DROP TABLE IF EXISTS {tabla}")
 
 
 def _migrar_maquila_externa():
@@ -404,20 +371,6 @@ def _migrar_maquila_externa():
         con.execute(
             "UPDATE proveedores_clasificacion SET categoria = 'Maquila Externa' "
             "WHERE categoria = 'Maquila'"
-        )
-
-
-def _migrar_origen_gastos():
-    """
-    `gastos_empresa` gana `origen` para distinguir la captura manual de lo
-    publicado automáticamente desde Contabilidad. Lo que ya existía es manual.
-    """
-    with _conn() as con:
-        if _columna_existe(con, "gastos_empresa", "origen"):
-            return
-        con.execute(
-            "ALTER TABLE gastos_empresa "
-            "ADD COLUMN origen TEXT NOT NULL DEFAULT 'manual'"
         )
 
 
@@ -551,189 +504,6 @@ def log_evento(tipo, detalle=None):
             f"INSERT INTO eventos (tipo, detalle) VALUES ({_PH}, {_PH})",
             (tipo, detalle),
         )
-
-
-def get_gastos_manuales():
-    """
-    Lo que quedó de la captura manual, que ya no existe como pantalla.
-
-    Returns [(concepto, periodo, monto)] ordenado por monto. Se conserva para
-    poder mostrarlo y borrarlo a propósito: al quitar la captura manual estas
-    filas dejaron de sumar al costo operativo, y un monto que dejó de contar sin
-    que nadie lo vea es peor que uno de más.
-    """
-    with _conn() as con:
-        rows = con.execute(
-            "SELECT concepto, periodo, monto_mxn FROM gastos_empresa "
-            "WHERE origen = 'manual' ORDER BY monto_mxn DESC"
-        ).fetchall()
-    return [(r[0], r[1], float(r[2])) for r in rows]
-
-
-def delete_gastos_manuales():
-    """Borra definitivamente los residuos de la captura manual. Returns n."""
-    with _conn() as con:
-        cur = con.execute("DELETE FROM gastos_empresa WHERE origen = 'manual'")
-        return cur.rowcount if cur.rowcount is not None else 0
-
-
-def get_gastos_empresa_totales_por_periodo(periodos):
-    """
-    Solo `origen='contabilidad'`: desde que se quitó la captura manual, el libro
-    contable es la única fuente del gasto no-SAE. Filtrar aquí evita que residuos
-    de la captura vieja sigan moviendo el margen sin aparecer en ninguna pantalla.
-
-    Returns {periodo_str "YYYY-MM": total_monto} for the given iterable of
-    periodo strings — used to add "Gastos de Empresa" spend to charts/KPIs
-    filtered by the sidebar's period selection.
-    """
-    periodos = list(periodos)
-    if not periodos:
-        return {}
-    placeholders = ",".join([_PH] * len(periodos))
-    with _conn() as con:
-        rows = con.execute(
-            f"SELECT periodo, SUM(monto_mxn) FROM gastos_empresa "
-            f"WHERE origen = 'contabilidad' AND periodo IN ({placeholders}) "
-            f"GROUP BY periodo",
-            tuple(periodos),
-        ).fetchall()
-    return {r[0]: float(r[1]) for r in rows}
-
-
-def get_gastos_empresa_por_concepto(periodos):
-    """
-    Returns {concepto: total_monto} for the given iterable of periodo strings.
-    Solo `origen='contabilidad'` — ver la nota en la función de arriba.
-    """
-    periodos = list(periodos)
-    if not periodos:
-        return {}
-    placeholders = ",".join([_PH] * len(periodos))
-    with _conn() as con:
-        rows = con.execute(
-            f"SELECT concepto, SUM(monto_mxn) FROM gastos_empresa "
-            f"WHERE origen = 'contabilidad' AND periodo IN ({placeholders}) "
-            f"GROUP BY concepto "
-            f"ORDER BY SUM(monto_mxn) DESC",
-            tuple(periodos),
-        ).fetchall()
-    return {r[0]: float(r[1]) for r in rows}
-
-
-_SQL_UPSERT_GE = f"""
-    INSERT INTO gastos_empresa (concepto, periodo, monto_mxn, notas, origen,
-                                fecha_modificacion)
-    VALUES ({_PH}, {_PH}, {_PH}, {_PH}, 'contabilidad', CURRENT_TIMESTAMP)
-    ON CONFLICT(concepto, periodo) DO UPDATE SET
-        monto_mxn          = EXCLUDED.monto_mxn,
-        notas              = EXCLUDED.notas,
-        fecha_modificacion = CURRENT_TIMESTAMP
-"""
-
-
-def reemplazar_gastos_contabilidad(rows):
-    """
-    Republica los gastos derivados de Contabilidad.
-
-    Borra todo lo que tenga `origen='contabilidad'` y reinserta, en una sola
-    transacción: el libro contable es la fuente de verdad completa, así que
-    republicar tras corregir el catálogo tiene que dejar el resultado exacto, no
-    acumulado. La captura manual no se toca.
-
-    `rows` = iterable de (concepto, periodo, monto, notas). Returns n escritas.
-    """
-    filas = [(c, p, m, n) for c, p, m, n in rows]
-    with _conn() as con:
-        con.execute("DELETE FROM gastos_empresa WHERE origen = 'contabilidad'")
-        con.executemany(_SQL_UPSERT_GE, filas)
-    return len(filas)
-
-
-def get_gastos_empresa_publicados():
-    """
-    Returns {(concepto, periodo): monto} de lo publicado desde Contabilidad.
-    Sirve para avisar de choques de nombre con la captura manual.
-    """
-    with _conn() as con:
-        rows = con.execute(
-            "SELECT concepto, periodo, monto_mxn FROM gastos_empresa "
-            "WHERE origen = 'contabilidad'"
-        ).fetchall()
-    return {(r[0], r[1]): float(r[2]) for r in rows}
-
-
-# ── Contabilidad ──────────────────────────────────────────────────────────────
-
-def reemplazar_contabilidad(rows):
-    """
-    Reemplaza por completo el libro contable con la carga nueva.
-
-    Es "una sola base de datos que se va actualizando", no un histórico
-    incremental: cada carga sustituye a la anterior dentro de una sola
-    transacción, así que un archivo mal armado nunca deja la BD a medias.
-
-    `rows` = iterable de (periodo, cuenta, proveedor, proveedor_norm, monto,
-    descripcion). Returns n insertadas.
-    """
-    rows = [tuple(r) for r in rows]
-    sql = (
-        f"INSERT INTO contabilidad_movimientos "
-        f"(periodo, cuenta, proveedor, proveedor_norm, monto_mxn, descripcion) "
-        f"VALUES ({_PH}, {_PH}, {_PH}, {_PH}, {_PH}, {_PH})"
-    )
-    with _conn() as con:
-        con.execute("DELETE FROM contabilidad_movimientos")
-        con.executemany(sql, rows)
-    return len(rows)
-
-
-def get_contabilidad(periodos=None):
-    """
-    Returns list[dict] de movimientos contables, opcionalmente filtrados por una
-    lista de periodos "YYYY-MM". Lista vacía si no hay libro cargado.
-    """
-    sql = (
-        "SELECT periodo, cuenta, proveedor, proveedor_norm, monto_mxn, descripcion "
-        "FROM contabilidad_movimientos"
-    )
-    params = ()
-    if periodos is not None:
-        periodos = list(periodos)
-        if not periodos:
-            return []
-        sql += f" WHERE periodo IN ({','.join([_PH] * len(periodos))})"
-        params = tuple(periodos)
-
-    with _conn() as con:
-        rows = con.execute(sql, params).fetchall()
-
-    return [
-        {
-            "periodo":        r[0],
-            "cuenta":         r[1],
-            "proveedor":      r[2],
-            "proveedor_norm": r[3],
-            "monto_mxn":      float(r[4]),
-            "descripcion":    r[5] or "",
-        }
-        for r in rows
-    ]
-
-
-def get_meta_contabilidad():
-    """Returns {"n_movimientos", "periodos", "ultima_carga"} para el sidebar."""
-    with _conn() as con:
-        row = con.execute(
-            "SELECT COUNT(*), MIN(periodo), MAX(periodo), MAX(fecha_carga) "
-            "FROM contabilidad_movimientos"
-        ).fetchone()
-    n = int(row[0] or 0)
-    return {
-        "n_movimientos": n,
-        "periodos":      (row[1], row[2]) if n else (None, None),
-        "ultima_carga":  row[3] if n else None,
-    }
 
 
 def get_cuentas_contables():

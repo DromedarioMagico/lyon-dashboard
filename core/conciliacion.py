@@ -32,6 +32,30 @@ TRATO_NUNCA   = "Nunca GE"
 TRATOS = [TRATO_AUTO, TRATO_SIEMPRE, TRATO_NUNCA]
 
 
+def contabilidad_de_sesion():
+    """
+    El libro contable de la sesión, ya conciliado contra Compras y cruzado con el
+    catálogo de cuentas. `None` si no se ha subido en esta sesión.
+
+    Es el único punto de entrada para las páginas: el libro vive en
+    `st.session_state` (se re-sube cada sesión, no se guarda), mientras que el
+    catálogo de cuentas sí viene de la BD porque es una decisión del usuario.
+    """
+    import streamlit as st
+    from core.database import get_cuentas_contables
+
+    df = st.session_state.get("df_contabilidad")
+    if df is None or len(df) == 0:
+        return None
+
+    return marcar_publicables(
+        aplicar_catalogo_cuentas(
+            conciliar_con_sae(df, st.session_state.get("df_compras")),
+            get_cuentas_contables(),
+        )
+    )
+
+
 def conciliar_con_sae(df_ctb, df_compras=None):
     """
     Marca cada movimiento contable con su Estado_SAE.
@@ -172,30 +196,39 @@ def resumen_conciliacion(df):
     }
 
 
-def filas_para_gastos_empresa(df):
-    """
-    Agrupa los movimientos publicables en filas de `gastos_empresa`.
-
-    Returns list[(concepto, periodo, monto, notas)] — la misma forma que consume
-    `database.bulk_upsert_gastos_empresa`, agrupada por (cuenta, periodo) y usando
-    el nombre del catálogo como concepto.
-    """
+def _publicables(df, periodos=None):
+    """Movimientos que cuentan como Gasto de Empresa, opcionalmente por periodo."""
     if "Publicable" not in df.columns:
         df = marcar_publicables(df)
-
     pub = df[df["Publicable"]]
+    if periodos is not None:
+        claves = {str(p) for p in periodos}
+        pub = pub[pub["_Mes"].astype(str).isin(claves)]
+    return pub
+
+
+def gasto_empresa_por_periodo(df, periodos=None):
+    """
+    Returns {"YYYY-MM": monto} del gasto que no pasa por el SAE.
+
+    Se calcula en vivo desde el libro de la sesión: el libro contable no se
+    persiste, así que tampoco se persiste nada derivado de él. Un total guardado
+    de un libro que ya no está cargado sería un número sin respaldo.
+    """
+    pub = _publicables(df, periodos)
     if len(pub) == 0:
-        return []
+        return {}
+    g = pub.groupby(pub["_Mes"].astype(str))["Monto_MXN"].sum()
+    return {k: float(v) for k, v in g.items()}
 
+
+def gasto_empresa_por_concepto(df, periodos=None):
+    """Returns {concepto: monto}, de mayor a menor, usando el nombre del catálogo."""
+    pub = _publicables(df, periodos)
+    if len(pub) == 0:
+        return {}
     g = (
-        pub.groupby(["Cuenta_Nombre", "_Mes"], as_index=False)
-        .agg(Monto=("Monto_MXN", "sum"), N=("Monto_MXN", "size"))
-        .sort_values("Monto", ascending=False)
+        pub.groupby("Cuenta_Nombre")["Monto_MXN"].sum()
+        .sort_values(ascending=False)
     )
-
-    filas = []
-    for _, r in g.iterrows():
-        periodo = f"{r['_Mes'].year}-{r['_Mes'].month:02d}"
-        notas   = f"Contabilidad · {int(r['N'])} movimiento(s) fuera del SAE"
-        filas.append((str(r["Cuenta_Nombre"]), periodo, float(r["Monto"]), notas))
-    return filas
+    return {str(k): float(v) for k, v in g.items()}

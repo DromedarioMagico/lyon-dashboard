@@ -9,10 +9,9 @@ from core.database import (
     init_db, get_clasificaciones, upsert_clasificacion, delete_clasificacion,
     log_evento, get_vendedor_clientes, upsert_vendedor_cliente,
     delete_vendedor_cliente, bulk_upsert_clasificaciones,
-    get_contabilidad, get_cuentas_contables, bulk_upsert_cuentas_contables,
+    get_cuentas_contables, bulk_upsert_cuentas_contables,
 )
 from core.etl_compras import aplicar_clasificaciones
-from core.etl_contabilidad import df_desde_bd
 from core.etl_ventas import aplicar_vendedores
 from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav
 
@@ -51,11 +50,13 @@ def _render_cuentas_contables(prefijo="cta"):
     `_render_tabla_editable`: `num_rows="fixed"`, diff posicional, la llave del
     editor embebe el filtro.
     """
-    df_ctb = df_desde_bd(get_contabilidad())
-    if len(df_ctb) == 0:
+    # El libro vive en la sesión: si no se ha subido, no hay cuentas que nombrar.
+    df_ctb = st.session_state.get("df_contabilidad")
+    if df_ctb is None or len(df_ctb) == 0:
         st.info(
-            "Todavía no hay base de contabilidad cargada, así que no hay cuentas que "
-            "nombrar. Súbela en **Gastos de Empresa**."
+            "Todavía no hay base de contabilidad cargada en esta sesión, así que no "
+            "hay cuentas que nombrar. Súbela en **Gastos de Empresa**. Lo que ya "
+            "hayas clasificado antes sigue guardado y reaparece al cargar el libro."
         )
         if st.button("Ir a Gastos de Empresa", key=f"{prefijo}_goto"):
             st.switch_page("pages/5_Gastos_de_Empresa.py")

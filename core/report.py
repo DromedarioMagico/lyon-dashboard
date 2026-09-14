@@ -10,8 +10,8 @@ from core.catalogos import (
     COLOR_LYON, COLOR_VENTAS, COLOR_GASTOS_EMPRESA, ETIQ_PENDIENTE,
     PALETA_CATEGORIAS, label_mes,
 )
-from core.database import (
-    get_gastos_empresa_totales_por_periodo, get_gastos_empresa_por_concepto,
+from core.conciliacion import (
+    contabilidad_de_sesion, gasto_empresa_por_concepto, gasto_empresa_por_periodo,
 )
 from core.etl_compras import aplicar_clasificaciones
 from core.etl_ventas import aplicar_vendedores
@@ -143,12 +143,15 @@ def generate_report_html(
         lambda r: r["Margen"] / r["Ventas"] * 100 if r["Ventas"] > 0 else 0, axis=1
     )
 
-    # Gastos de Empresa (nómina, etc. — no pasan por el SAE, captura manual)
-    _periodos_str        = [f"{p.year}-{p.month:02d}" for p in meses_comunes]
-    _ge_por_periodo       = get_gastos_empresa_totales_por_periodo(_periodos_str)
-    gasto_empresa_total   = sum(_ge_por_periodo.values())
-    _ge_por_concepto      = (
-        get_gastos_empresa_por_concepto(_periodos_str) if gasto_empresa_total > 0 else {}
+    # Gastos de Empresa: se derivan del libro contable de la sesión, no de la BD.
+    _conc               = contabilidad_de_sesion()
+    _ge_por_periodo     = (
+        gasto_empresa_por_periodo(_conc, meses_comunes) if _conc is not None else {}
+    )
+    gasto_empresa_total = sum(_ge_por_periodo.values())
+    _ge_por_concepto    = (
+        gasto_empresa_por_concepto(_conc, meses_comunes)
+        if gasto_empresa_total > 0 else {}
     )
     mes_df["Gastos_Empresa"] = mes_df["_Mes"].apply(
         lambda p: _ge_por_periodo.get(f"{p.year}-{p.month:02d}", 0.0)

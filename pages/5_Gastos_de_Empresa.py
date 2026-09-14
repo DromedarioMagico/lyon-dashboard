@@ -5,15 +5,11 @@ import streamlit as st
 
 from core.catalogos import COLOR_LYON, COLOR_GASTOS_EMPRESA, label_mes
 from core.conciliacion import (
-    conciliar_con_sae, aplicar_catalogo_cuentas, marcar_publicables,
-    resumen_conciliacion, filas_para_gastos_empresa, ESTADOS,
+    contabilidad_de_sesion, resumen_conciliacion, gasto_empresa_por_concepto,
+    gasto_empresa_por_periodo, ESTADOS,
 )
-from core.database import (
-    init_db, log_evento, reemplazar_contabilidad, get_contabilidad,
-    get_meta_contabilidad, get_cuentas_contables, reemplazar_gastos_contabilidad,
-    get_gastos_empresa_publicados, get_gastos_manuales, delete_gastos_manuales,
-)
-from core.etl_contabilidad import cargar_contabilidad, filas_para_bd, df_desde_bd
+from core.database import init_db, log_evento
+from core.etl_contabilidad import cargar_contabilidad
 from core.navigation import (
     render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav,
 )
@@ -61,31 +57,16 @@ def _kpi(label, value, color, desc=None):
     )
 
 
-def _render_conciliacion(df_ctb, meta_bd):
-    """
-    Conciliación del libro contable contra el SAE + publicación a Gastos de Empresa.
-
-    Va en una función y no inline en la pestaña porque el caso "sin libro cargado"
-    necesita cortar solo este bloque: `st.stop()` mataría también la pestaña de
-    captura manual, ya que Streamlit ejecuta el script completo, no una pestaña.
-    """
+def _render_conciliacion(df_conc):
+    """Conciliación del libro contable de la sesión contra las compras del SAE."""
     df_compras = st.session_state.get("df_compras")
-    cuentas    = get_cuentas_contables()
+    res        = resumen_conciliacion(df_conc)
 
-    df_conc = marcar_publicables(
-        aplicar_catalogo_cuentas(conciliar_con_sae(df_ctb, df_compras), cuentas)
-    )
-    res = resumen_conciliacion(df_conc)
-
-    _meta_sesion = st.session_state.get("df_contabilidad_meta")
-    _origen = (
-        f"{_meta_sesion['archivo']} · cargado {_meta_sesion['uploaded_at']}"
-        if _meta_sesion else f"última carga: {meta_bd['ultima_carga'] or '—'}"
-    )
-    _p0, _p1 = meta_bd["periodos"]
+    _meta = st.session_state.get("df_contabilidad_meta", {})
     st.caption(
         f"**{res['n_movimientos']:,}** movimientos · **{res['n_cuentas']}** cuentas · "
-        f"periodos {_p0} → {_p1} · {_origen}"
+        f"periodos {_meta.get('periodos', '—')} · {_meta.get('archivo', '—')} "
+        f"(cargado {_meta.get('uploaded_at', '—')})"
     )
 
     if df_compras is None:
@@ -227,82 +208,64 @@ def _render_conciliacion(df_ctb, meta_bd):
     if len(tabla) > 500:
         st.caption("Se muestran los 500 movimientos de mayor monto. Usa los filtros.")
 
-    # ── Publicación a Gastos de Empresa ───────────────────────────────────────
+    # ── Lo que cuenta como Gasto de Empresa ───────────────────────────────────
     st.divider()
-    st.markdown("#### Publicar a Gastos de Empresa")
+    st.markdown("#### Lo que entra como Gasto de Empresa")
     st.caption(
         "Solo entra lo que está **fuera del SAE** y cuya cuenta marcaste como **gasto "
-        "operativo**. Lo que quedó «Por revisar» no se publica: ahí el dato no alcanza "
-        "para afirmar que el gasto no pasó por compras, y publicarlo duplicaría lo que "
-        "Compras ya muestra."
+        "operativo**. Lo que quedó «Por revisar» no entra: ahí el dato no alcanza "
+        "para afirmar que el gasto no pasó por compras, y contarlo duplicaría lo que "
+        "Compras ya muestra. Se calcula al vuelo — no hay nada que publicar ni "
+        "guardar, y cambiar el catálogo se refleja de inmediato."
     )
 
-    filas_pub = filas_para_gastos_empresa(df_conc)
-    ya_pub    = get_gastos_empresa_publicados()
-
-    if not filas_pub:
+    _por_concepto = gasto_empresa_por_concepto(df_conc)
+    if not _por_concepto:
         st.info(
-            "No hay nada que publicar todavía. "
+            "Todavía no hay nada que cuente como Gasto de Empresa. "
             + (
                 "Clasifica las cuentas en el catálogo para que su gasto cuente."
                 if res["n_cuentas_sin_clasificar"]
                 else "Ningún movimiento quedó fuera del SAE con una cuenta de gasto."
             )
         )
-        if ya_pub:
-            st.warning(
-                f"Hay {len(ya_pub)} concepto-mes publicado(s) de una corrida anterior "
-                f"por ${sum(ya_pub.values())/1e6:,.2f}M. Al publicar de nuevo se "
-                f"reemplazan por completo."
-            )
     else:
+        _por_periodo = gasto_empresa_por_periodo(df_conc)
         prev = pd.DataFrame(
-            filas_pub, columns=["Concepto", "Periodo", "Monto", "Notas"]
+            sorted(_por_concepto.items(), key=lambda kv: -kv[1]),
+            columns=["Concepto", "Monto"],
         )
-        total_pub = float(prev["Monto"].sum())
+        total_ge = float(prev["Monto"].sum())
         st.dataframe(
-            prev[["Concepto", "Periodo", "Monto"]],
-            use_container_width=True, hide_index=True,
+            prev, use_container_width=True, hide_index=True,
             column_config={
                 "Monto": st.column_config.NumberColumn("Monto", format="$%,.2f"),
             },
             height=min(400, 45 + 36 * min(len(prev), 9)),
         )
         st.caption(
-            f"**{len(prev)}** concepto-mes · **${total_pub/1e6:,.2f}M** entrarían como "
-            f"Gasto de Empresa. Republicar reemplaza por completo lo publicado antes; "
-            f"la captura manual no se toca."
+            f"**${total_ge/1e6:,.2f}M** en **{len(prev)}** concepto(s), repartidos en "
+            f"**{len(_por_periodo)}** mes(es). Ya se refleja en Compras, Comparativa "
+            f"y Facturación mientras el libro siga cargado en esta sesión."
         )
-        if st.button("💾 Publicar a Gastos de Empresa", type="primary",
-                     key="ctb_btn_publicar"):
-            n = reemplazar_gastos_contabilidad(filas_pub)
-            log_evento(
-                "contabilidad_publicacion",
-                f"{n} concepto-mes, ${total_pub:,.0f}",
-            )
-            st.success(
-                f"✅ {n} concepto-mes publicado(s) por ${total_pub/1e6:,.2f}M. "
-                f"Ya se reflejan en Compras, Comparativa y Facturación."
-            )
-            st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  Carga del libro contable, conciliación con el SAE y publicación
+#  Carga del libro contable y conciliación con el SAE
 # ══════════════════════════════════════════════════════════════════════════════
 st.caption(
     "Sube la base consolidada que te manda Contabilidad. La app cruza cada "
     "movimiento contra las compras del SAE y separa lo que **ya pasó por el "
-    "proceso de compras** de lo que **no** — eso último es el Gasto de Empresa, "
-    "sin captura manual. A diferencia del SAE, esta base **sí se guarda**: cada "
-    "carga reemplaza por completo a la anterior."
+    "proceso de compras** de lo que **no** — eso último es el Gasto de Empresa. "
+    "Igual que el SAE, **este archivo no se guarda**: vive solo en esta sesión y "
+    "hay que volver a subirlo la próxima vez. Lo único que se guarda son tus "
+    "decisiones del catálogo de cuentas."
 )
 
-meta_bd = get_meta_contabilidad()
+_ya_cargada = "df_contabilidad" in st.session_state
 
 with st.expander(
-    "📥 Cargar / actualizar la base de contabilidad",
-    expanded=(meta_bd["n_movimientos"] == 0),
+    "📥 Cargar la base de contabilidad", expanded=not _ya_cargada,
 ):
     up = st.file_uploader(
         "Base de contabilidad (.xlsx)",
@@ -315,68 +278,43 @@ with st.expander(
         "y `DESCRIPCIÓN`. El mes puede venir como «abril-26»."
     )
     if up is not None and st.button(
-        "Reemplazar base de contabilidad", type="primary", key="ctb_btn_cargar"
+        "Cargar base de contabilidad", type="primary", key="ctb_btn_cargar"
     ):
         with st.spinner("Procesando la base de contabilidad…"):
             try:
                 df_new, warns = cargar_contabilidad(up)
-                n = reemplazar_contabilidad(filas_para_bd(df_new))
-                log_evento(
-                    "contabilidad_carga",
-                    f"{up.name}: {n} movimientos, "
-                    f"${df_new['Monto_MXN'].sum():,.0f}",
-                )
+                st.session_state["df_contabilidad"] = df_new
                 st.session_state["df_contabilidad_meta"] = {
                     "archivo":     up.name,
                     "uploaded_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "periodos":    (
+                        f"{df_new['_Mes'].min()} → {df_new['_Mes'].max()}"
+                    ),
                 }
+                log_evento(
+                    "contabilidad_carga",
+                    f"{up.name}: {len(df_new)} movimientos, "
+                    f"${df_new['Monto_MXN'].sum():,.0f}",
+                )
                 for w in warns:
                     st.warning(w)
-                st.success(f"✅ {n:,} movimientos cargados.")
+                st.success(f"✅ {len(df_new):,} movimientos cargados.")
                 st.rerun()
             except ValueError as e:
                 st.error(f"Error al procesar el archivo:\n\n{e}")
 
-df_ctb = df_desde_bd(get_contabilidad())
+df_conc = contabilidad_de_sesion()
 
-if len(df_ctb) == 0:
+if df_conc is None:
     st.info(
-        "Todavía no hay base de contabilidad cargada. Súbela arriba para ver la "
-        "conciliación contra el SAE."
+        "Todavía no hay base de contabilidad cargada en esta sesión. Súbela arriba "
+        "para ver la conciliación contra el SAE."
     )
 else:
-    _render_conciliacion(df_ctb, meta_bd)
+    _render_conciliacion(df_conc)
 
-
-# ── Residuos de la captura manual, que ya no existe ───────────────────────────
-# Estas filas dejaron de sumar al costo operativo al quitarse la pantalla. Se
-# muestran en vez de borrarse solas: un monto que dejó de contar sin que nadie
-# lo vea es peor que uno de más, y borrar datos del usuario no se hace en
-# silencio.
-_manuales = get_gastos_manuales()
-if _manuales:
     st.divider()
-    _tot_man = sum(m for _, _, m in _manuales)
-    with st.expander(
-        f"⚠️ Quedan {len(_manuales)} registro(s) de la captura manual "
-        f"(${_tot_man/1e6:,.2f}M) — ya no cuentan",
-    ):
-        st.caption(
-            "La captura manual se eliminó: el libro de Contabilidad es ahora la "
-            "única fuente del gasto que no pasa por el SAE. Estos registros **ya "
-            "no suman** al costo operativo ni al margen en ninguna pantalla. "
-            "Se conservan por si quieres consultarlos antes de borrarlos."
-        )
-        st.dataframe(
-            pd.DataFrame(_manuales, columns=["Concepto", "Periodo", "Monto"]),
-            use_container_width=True, hide_index=True,
-            column_config={
-                "Monto": st.column_config.NumberColumn("Monto", format="$%,.2f"),
-            },
-            height=min(340, 45 + 36 * min(len(_manuales), 8)),
-        )
-        if st.button("🗑 Borrar definitivamente", key="ge_btn_borrar_manual"):
-            n = delete_gastos_manuales()
-            log_evento("gastos_manuales_borrados", f"{n} registros, ${_tot_man:,.0f}")
-            st.success(f"✅ {n} registro(s) borrado(s).")
-            st.rerun()
+    if st.button("🗑 Quitar la base de contabilidad de esta sesión"):
+        for k in ("df_contabilidad", "df_contabilidad_meta"):
+            st.session_state.pop(k, None)
+        st.rerun()
