@@ -132,17 +132,20 @@ pendiente_periodo = float(df_rem["Subtotal_MXN"].sum())
 # (anticipos) inflarían el costo y distorsionarían el margen.
 _conc = contabilidad_de_sesion()
 
-gasto_periodo    = 0.0
-gasto_por_cuenta = {}
-res_ctb          = None
+gasto_periodo       = 0.0
+gasto_por_categoria = {}
+res_ctb             = None
 if _conc is not None:
     res_ctb = resumen_conciliacion(_conc)
     _op = _conc[_conc["Naturaleza"] == NAT_GASTO]
     if periodo is not None:
         _op = _op[_op["_Mes"] == periodo]
     gasto_periodo = float(_op["Monto_MXN"].sum())
-    gasto_por_cuenta = (
-        _op.groupby("Cuenta_Nombre")["Monto_MXN"].sum()
+    # Por Categoría, no por cuenta: es el bucket que el usuario arma a propósito
+    # ("Nómina" agrupa una o varias cuentas) — agrupar por cuenta individual
+    # dejaría esa clasificación sin reflejo en la gráfica.
+    gasto_por_categoria = (
+        _op.groupby("Categoria")["Monto_MXN"].sum()
         .sort_values(ascending=False).to_dict()
     )
 
@@ -203,12 +206,17 @@ if res_ctb and res_ctb["n_cuentas_sin_clasificar"]:
 with st.container(border=True):
     if gasto_periodo > 0:
         st.plotly_chart(
-            plot_waterfall_margen(facturado_periodo, gasto_por_cuenta, margen),
+            plot_waterfall_margen(facturado_periodo, gasto_por_categoria, margen),
             use_container_width=True,
         )
+        # Los "$" van escapados a propósito: con dos signos de peso sin escapar
+        # en el mismo bloque de markdown, Streamlit los toma como delimitadores
+        # de LaTeX y renderiza como fórmula todo lo que hay entre ellos —
+        # incluidos los **negritas** y los espacios (bug real, visto en
+        # producción: "9.42M**facturadosquedan**3.08M" en cursiva de fórmula).
         st.caption(
-            f"De **${facturado_periodo/1e6:,.2f}M** facturados quedan "
-            f"**${margen/1e6:,.2f}M** ({margen_pct:.1f}%) después del gasto que "
+            f"De **\\${facturado_periodo/1e6:,.2f}M** facturados quedan "
+            f"**\\${margen/1e6:,.2f}M** ({margen_pct:.1f}%) después del gasto que "
             f"reportó Contabilidad para {meta['periodo']}."
         )
     else:
@@ -315,9 +323,10 @@ with st.container(border=True):
 # ════════════════════════════════════════════════════════════════════════════════
 st.markdown("### Peso del gasto contable sobre la facturación")
 st.caption(
-    "Cada cuenta contable como porcentaje de lo que se facturó en el mes. Convierte "
-    "el gasto en una medida comparable entre meses buenos y malos: $2M de "
-    "mantenimiento pesa distinto en un mes de $9M que en uno de $6M."
+    "Cada categoría de gasto (agrupando sus cuentas contables) como porcentaje de "
+    "lo que se facturó en el mes. Convierte el gasto en una medida comparable "
+    "entre meses buenos y malos: \\$2M de mantenimiento pesa distinto en un mes de "
+    "\\$9M que en uno de \\$6M."
 )
 
 with st.container(border=True):
@@ -325,13 +334,13 @@ with st.container(border=True):
         peso = pd.DataFrame(
             [
                 {
-                    "Cuenta": nombre,
+                    "Categoría": nombre,
                     "Monto": monto,
                     "% de lo facturado": (
                         monto / facturado_periodo * 100 if facturado_periodo else 0.0
                     ),
                 }
-                for nombre, monto in gasto_por_cuenta.items()
+                for nombre, monto in gasto_por_categoria.items()
             ]
         )
         st.dataframe(

@@ -223,12 +223,19 @@ def gasto_empresa_por_periodo(df, periodos=None):
 
 
 def gasto_empresa_por_concepto(df, periodos=None):
-    """Returns {concepto: monto}, de mayor a menor, usando el nombre del catálogo."""
+    """
+    Returns {categoría: monto}, de mayor a menor.
+
+    Se agrupa por Categoría (no por cuenta): es el bucket que el usuario arma a
+    propósito para que varias cuentas se lean como un solo concepto — "Nómina",
+    "Logística / Fletes", etc. Agrupar por cuenta individual haría que ese
+    trabajo de clasificación nunca se viera reflejado en ninguna gráfica.
+    """
     pub = _publicables(df, periodos)
     if len(pub) == 0:
         return {}
     g = (
-        pub.groupby("Cuenta_Nombre")["Monto_MXN"].sum()
+        pub.groupby("Categoria")["Monto_MXN"].sum()
         .sort_values(ascending=False)
     )
     return {str(k): float(v) for k, v in g.items()}

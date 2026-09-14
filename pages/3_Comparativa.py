@@ -670,9 +670,11 @@ for _m in set(pivot_c.index) & set(pivot_v.index):
                 _best_c_val, _best_v_val = _cv, _vv
 
 if _best_mes != "—":
+    # "\$" escapado: dos "$" sin escapar en el mismo bloque de markdown se
+    # interpretan como delimitadores de LaTeX y se comen todo lo de en medio.
     st.info(
         f"📊 **Semana con mayor desfase C/V: {_best_sem} de {_best_mes}** — "
-        f"Compras ${_best_c_val/1e3:,.0f}K · Ventas ${_best_v_val/1e3:,.0f}K · "
+        f"Compras \\${_best_c_val/1e3:,.0f}K · Ventas \\${_best_v_val/1e3:,.0f}K · "
         f"Ratio C/V {_best_ratio:.2f}"
     )
 
