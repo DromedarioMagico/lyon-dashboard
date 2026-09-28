@@ -8,6 +8,8 @@ debe registrarse como Gasto de Empresa, sin captura manual.
 Sin dependencias de Streamlit.
 """
 
+import pandas as pd
+
 from core.etl_contabilidad import normalizar_proveedor
 
 # Estados de conciliación por movimiento contable.
@@ -239,3 +241,74 @@ def gasto_empresa_por_concepto(df, periodos=None):
         .sort_values(ascending=False)
     )
     return {str(k): float(v) for k, v in g.items()}
+
+
+# ── Cuadre contra la Balanza de Comprobación ──────────────────────────────────
+# Estados del cuadre: no corrigen nada, solo lo hacen visible para reclamarlo.
+CUADRA        = "Cuadra"
+LIBRO_DE_MAS  = "Libro de más"
+LIBRO_DE_MENOS = "Libro de menos"
+SOLO_BALANZA  = "Solo en balanza"
+SOLO_LIBRO    = "Solo en libro"
+
+_TOL_CUADRE = 1.0  # centavos de redondeo — no un descuadre real
+
+
+def cuadre_balanza_vs_libro(df_balanza, df_libro, periodos=None):
+    """
+    Compara, por cuenta mayor y mes, lo que dice la Balanza de Comprobación
+    contra lo que trae el libro de movimientos. No corrige nada — el propósito
+    es exponer el descuadre con la cifra exacta, para reclamárselo a
+    Contabilidad, no para que la app decida en silencio cuál de los dos tiene
+    razón.
+
+    df_balanza: salida de `etl_balanza.cargar_balanza` (columnas Cuenta, Nivel,
+                Mayor, Nombre_Oficial, _Mes, Debe).
+    df_libro:   salida de `etl_contabilidad.cargar_contabilidad` (columnas
+                Cuenta, Monto_MXN, _Mes).
+
+    Returns df: Mayor · Nombre_Oficial · _Mes · Balanza · Libro · Diferencia ·
+    Estado. Un mayor que el libro trae pero la balanza no reporta para ese mes
+    (p. ej. las cuentas `1006-*` de anticipos) sale como "Solo en libro" — eso
+    es información real, no un error de la función.
+    """
+    from core.etl_balanza import totales_por_mayor
+
+    bal = totales_por_mayor(df_balanza, periodos)
+    bal = bal.rename(columns={"Debe": "Balanza"})
+
+    lib = df_libro.copy()
+    lib["Mayor"] = lib["Cuenta"].astype(str).str[:4]
+    if periodos is not None:
+        claves = {str(p) for p in periodos}
+        lib = lib[lib["_Mes"].astype(str).isin(claves)]
+    lib_g = (
+        lib.groupby(["Mayor", "_Mes"], as_index=False)["Monto_MXN"].sum()
+        .rename(columns={"Monto_MXN": "Libro"})
+    )
+
+    merged = pd.merge(
+        bal[["Mayor", "Nombre_Oficial", "_Mes", "Balanza"]], lib_g,
+        on=["Mayor", "_Mes"], how="outer",
+    )
+    merged["Balanza"] = merged["Balanza"].fillna(0.0)
+    merged["Libro"] = merged["Libro"].fillna(0.0)
+    # Un mayor que solo aparece en el libro no trae Nombre_Oficial (la balanza
+    # nunca lo reportó) — se usa el código de mayor como respaldo.
+    merged["Nombre_Oficial"] = merged["Nombre_Oficial"].fillna(merged["Mayor"])
+    merged["Diferencia"] = merged["Balanza"] - merged["Libro"]
+
+    def _estado(row):
+        if row["Balanza"] == 0 and row["Libro"] != 0:
+            return SOLO_LIBRO
+        if row["Libro"] == 0 and row["Balanza"] != 0:
+            return SOLO_BALANZA
+        if abs(row["Diferencia"]) <= _TOL_CUADRE:
+            return CUADRA
+        return LIBRO_DE_MENOS if row["Diferencia"] > 0 else LIBRO_DE_MAS
+
+    merged["Estado"] = merged.apply(_estado, axis=1)
+    return (
+        merged.sort_values("Diferencia", key=lambda s: s.abs(), ascending=False)
+        .reset_index(drop=True)
+    )

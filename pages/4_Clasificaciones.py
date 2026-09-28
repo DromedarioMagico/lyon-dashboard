@@ -64,6 +64,24 @@ def _render_cuentas_contables(prefijo="cta"):
 
     cuentas = get_cuentas_contables()
 
+    # La balanza le pone nombre oficial a cada cuenta y agrupa por mayor —
+    # cuando está cargada, se usa para pre-llenar en vez de dejar en blanco.
+    # Nunca pisa un nombre que el usuario ya guardó (ver abajo, "or" corto-
+    # circuita si `cuentas` ya trae algo).
+    df_balanza = st.session_state.get("df_balanza")
+    _bal_nombre_por_cuenta = {}
+    _bal_mayor_nombre = {}
+    if df_balanza is not None and len(df_balanza):
+        _bal_nombre_por_cuenta = (
+            df_balanza.drop_duplicates("Cuenta", keep="last")
+            .set_index("Cuenta")["Nombre_Oficial"].to_dict()
+        )
+        _mayores_df = (
+            df_balanza[df_balanza["Nivel"] == 1]
+            .drop_duplicates("Mayor", keep="last")
+        )
+        _bal_mayor_nombre = dict(zip(_mayores_df["Mayor"], _mayores_df["Nombre_Oficial"]))
+
     # Una fila por cuenta vista en el libro, con su peso y sus proveedores
     # principales — sin eso el usuario no tiene con qué decidir el nombre.
     agg = (
@@ -80,8 +98,17 @@ def _render_cuentas_contables(prefijo="cta"):
     agg["Proveedores"] = agg["Cuenta"].map(top_prov).fillna("")
 
     agg["Nombre"] = [
-        cuentas.get(c, {}).get("nombre", "") or "" for c in agg["Cuenta"]
+        (cuentas.get(c, {}).get("nombre", "") or "").strip()
+        or _bal_nombre_por_cuenta.get(c, "")
+        for c in agg["Cuenta"]
     ]
+    if _bal_nombre_por_cuenta:
+        agg["Nombre_Balanza"] = agg["Cuenta"].map(_bal_nombre_por_cuenta).fillna("")
+        agg["Mayor"] = [
+            f"{c[:4]} · {_bal_mayor_nombre[c[:4]].title()}"
+            if c[:4] in _bal_mayor_nombre else ""
+            for c in agg["Cuenta"]
+        ]
     agg["Categoria"] = [
         cuentas.get(c, {}).get("categoria", "Otros / Sin clasificar")
         for c in agg["Cuenta"]
@@ -162,6 +189,13 @@ def _render_cuentas_contables(prefijo="cta"):
         "*Siempre GE* publica la cuenta aunque cruce con el SAE, *Nunca GE* la "
         "excluye siempre."
     )
+    if _bal_nombre_por_cuenta:
+        st.caption(
+            "📋 Balanza cargada: **Nombre** viene pre-llenado con el nombre oficial "
+            "de la cuenta para las que aún no tenías nombre guardado — edítalo si "
+            "prefieres otro. **Nombre en balanza** y **Mayor** son de solo lectura, "
+            "tal como los reporta Contabilidad."
+        )
 
     f1, f2 = st.columns([2, 4])
     with f1:
@@ -194,8 +228,11 @@ def _render_cuentas_contables(prefijo="cta"):
     # Naturaleza va antes que Categoría a propósito: es la única columna que
     # decide si la cuenta cuenta como gasto. Cuando iba al final y angosta, se
     # llenaba Nombre y Categoría creyendo que con eso quedaba clasificada.
-    edit_df = tabla[["Cuenta", "Nombre", "Naturaleza", "Categoria", "Trato",
-                     "Monto", "Movimientos", "Proveedores"]].copy()
+    _cols_bal = ["Nombre_Balanza", "Mayor"] if _bal_nombre_por_cuenta else []
+    edit_df = tabla[
+        ["Cuenta", "Nombre"] + _cols_bal +
+        ["Naturaleza", "Categoria", "Trato", "Monto", "Movimientos", "Proveedores"]
+    ].copy()
 
     _editor_key = f"{prefijo}_editor_{busq}_{'-'.join(sorted(nat_filtro))}"
 
@@ -227,7 +264,17 @@ def _render_cuentas_contables(prefijo="cta"):
             "Cuenta":     st.column_config.TextColumn("Cuenta", disabled=True),
             "Nombre":     st.column_config.TextColumn(
                 "Nombre", width="medium",
-                help="Cómo se llama esta cuenta en el lenguaje del negocio.",
+                help="Cómo se llama esta cuenta en el lenguaje del negocio. Si la "
+                     "balanza está cargada, viene pre-llenado con el nombre oficial "
+                     "cuando todavía no tenías uno guardado.",
+            ),
+            "Nombre_Balanza": st.column_config.TextColumn(
+                "Nombre en balanza", disabled=True, width="medium",
+                help="Como lo reporta Contabilidad — de solo lectura.",
+            ),
+            "Mayor":      st.column_config.TextColumn(
+                "Mayor", disabled=True, width="small",
+                help="La cuenta mayor a la que pertenece según la balanza.",
             ),
             "Naturaleza": st.column_config.SelectboxColumn(
                 "¿Cuenta como gasto?", options=NATURALEZAS, required=True,

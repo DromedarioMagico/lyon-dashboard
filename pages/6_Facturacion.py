@@ -16,6 +16,7 @@ from core.navigation import (
 from core.plots import (
     plot_facturacion_segmento, plot_fugas_cliente, plot_aging_remisiones,
     plot_waterfall_margen, plot_facturado_vs_gasto,
+    plot_pareto_clientes_ventas, plot_barras_temporales, plot_cobranza_mix,
 )
 
 st.set_page_config(
@@ -285,6 +286,42 @@ with st.container(border=True):
             column_config={"Monto sin IVA": st.column_config.NumberColumn(format="$%,.0f")},
         )
 
+# El archivo mensual manual solo ve las fugas del mes cargado. Si además hay un
+# reporte CFDI de Notas de Crédito, se agrega la vista del año completo — con
+# algo que el archivo manual no trae: el estatus de cancelación.
+_df_cfdi = st.session_state.get("df_cfdi")
+if _df_cfdi is not None:
+    _notas = _df_cfdi[_df_cfdi["Tipo_Doc"] == "Nota Cred"]
+    if len(_notas):
+        with st.container(border=True):
+            st.markdown("#### Notas de crédito — año completo")
+            _canceladas = _notas[_notas["Cancelado"]]
+            st.caption(
+                f"**{len(_notas)}** nota(s) de crédito en el año, de las cuales "
+                f"**{len(_canceladas)}** están **canceladas** y no deberían restar "
+                f"al neto — el archivo mensual manual no distingue esto."
+            )
+            _tabla_nc = (
+                _notas[["Fecha", "Cliente_Display", "Subtotal_MXN", "Cancelado"]]
+                .sort_values("Subtotal_MXN", ascending=False)
+                .rename(columns={
+                    "Cliente_Display": "Cliente", "Subtotal_MXN": "Monto sin IVA",
+                })
+            )
+            st.dataframe(
+                _tabla_nc, use_container_width=True, hide_index=True,
+                column_config={
+                    "Monto sin IVA": st.column_config.NumberColumn(format="$%,.0f"),
+                    "Fecha": st.column_config.DateColumn(format="DD-MMM-YYYY"),
+                },
+            )
+            _vig = float(_notas.loc[~_notas["Cancelado"], "Subtotal_MXN"].sum())
+            _can = float(_canceladas["Subtotal_MXN"].sum())
+            st.caption(
+                f"Vigentes: **${_vig/1e6:,.2f}M** · Canceladas (no restan): "
+                f"**${_can/1e6:,.2f}M**"
+            )
+
 
 # ════════════════════════════════════════════════════════════════════════════════
 #  4 — Pendiente por facturar (aging + anomalías)
@@ -379,6 +416,92 @@ if _conc is not None and len(df_hist) > 0:
                 "dejar menos."
             )
             st.plotly_chart(plot_facturado_vs_gasto(comp), use_container_width=True)
+
+
+# ════════════════════════════════════════════════════════════════════════════════
+#  6 — El año facturado (reporte CFDI de Contabilidad — condicional)
+# ════════════════════════════════════════════════════════════════════════════════
+# A diferencia de los bloques 1-5 (que vienen del archivo mensual hecho a mano y
+# solo ven un mes a la vez), esto sale del reporte CFDI del SAT que sube en
+# Gastos de Empresa: cubre el año completo y sabe qué se canceló.
+if _df_cfdi is not None:
+    st.divider()
+    st.markdown("### El año facturado")
+    st.caption(
+        "Del reporte CFDI que te manda Contabilidad — cubre el año completo, no "
+        "solo el mes cargado arriba, y distingue lo que se **canceló**."
+    )
+
+    _facturas_anio = _df_cfdi[_df_cfdi["Tipo_Doc"] == "Factura"]
+    _canc_anio     = _facturas_anio[_facturas_anio["Cancelado"]]
+    _notas_anio    = _df_cfdi[_df_cfdi["Tipo_Doc"] == "Nota Cred"]
+    _notas_vig     = _notas_anio[~_notas_anio["Cancelado"]]
+
+    _emitido = float(_facturas_anio["Subtotal_MXN"].sum())
+    _cancel  = float(_canc_anio["Subtotal_MXN"].sum())
+    _nc_vig  = float(_notas_vig["Subtotal_MXN"].sum())
+    _real    = _emitido - _cancel - _nc_vig
+
+    _meta_cfdi = st.session_state.get("df_cfdi_meta", {})
+    st.caption(
+        f"**{len(_facturas_anio):,}** factura(s) · periodo {_meta_cfdi.get('periodos', '—')} "
+        f"· {_meta_cfdi.get('archivo', '—')}"
+    )
+
+    a1, a2, a3, a4 = st.columns(4)
+    a1.markdown(_kpi(
+        "Facturado emitido", f"${_emitido/1e6:,.2f}M", COLOR_LYON,
+        desc="Todo lo timbrado en el año, sin IVA — incluye lo cancelado.",
+    ), unsafe_allow_html=True)
+    a2.markdown(_kpi(
+        "Cancelado", f"${_cancel/1e6:,.2f}M", _RED,
+        desc=f"{len(_canc_anio)} de {len(_facturas_anio)} facturas se cancelaron.",
+    ), unsafe_allow_html=True)
+    a3.markdown(_kpi(
+        "Notas de crédito", f"${_nc_vig/1e6:,.2f}M", _AMBER,
+        desc="Devoluciones y descuentos del año, vigentes (sin las canceladas).",
+    ), unsafe_allow_html=True)
+    a4.markdown(_kpi(
+        "Facturado real", f"${_real/1e6:,.2f}M", _GREEN,
+        desc="Emitido menos cancelado menos notas de crédito vigentes — el "
+             "neto real del año.",
+    ), unsafe_allow_html=True)
+
+    _vigentes_anio = _facturas_anio[~_facturas_anio["Cancelado"]]
+
+    with st.container(border=True):
+        st.plotly_chart(
+            plot_barras_temporales(
+                _vigentes_anio, "Subtotal_MXN",
+                "Facturación por mes — año completo", _GREEN,
+            ),
+            use_container_width=True,
+        )
+
+    with st.container(border=True):
+        st.caption(
+            "Top clientes del año por lo facturado (vigente, sin cancelaciones)."
+        )
+        # Se reutiliza el Pareto de Ventas tal cual: solo se alias Subtotal_MXN
+        # (sin IVA, consistente con el resto de esta página) al nombre de
+        # columna que la función ya espera.
+        _d_pareto = _vigentes_anio.assign(Importe_MXN=_vigentes_anio["Subtotal_MXN"])
+        st.plotly_chart(
+            plot_pareto_clientes_ventas(
+                _d_pareto, float(_d_pareto["Importe_MXN"].sum()), top_n=10,
+            ),
+            use_container_width=True,
+        )
+
+    # ── Cómo se cobra ──────────────────────────────────────────────────────────
+    st.markdown("#### Cómo se cobra")
+    st.caption(
+        "PPD = a crédito (pago en parcialidades o diferido); PUE = de contado. "
+        "Una mezcla mayoritaria de PPD es una señal de flujo de efectivo que hoy "
+        "no aparece en ningún otro lado de la app."
+    )
+    with st.container(border=True):
+        st.plotly_chart(plot_cobranza_mix(_df_cfdi), use_container_width=True)
 
 
 # ── Reset ─────────────────────────────────────────────────────────────────────

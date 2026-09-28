@@ -1222,3 +1222,100 @@ def plot_facturado_vs_gasto(df_mes):
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
     )
     return fig
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  CONTABILIDAD — cuadre contra la Balanza de Comprobación y mezcla de cobro
+# ══════════════════════════════════════════════════════════════════════════════
+def plot_cuadre_balanza(df_cuadre):
+    """
+    Balanza vs libro de movimientos, por cuenta mayor — barras agrupadas.
+
+    `df_cuadre` es la salida de `conciliacion.cuadre_balanza_vs_libro()`. No
+    corrige el descuadre ni decide cuál de las dos fuentes tiene razón: solo lo
+    ordena por tamaño para que el hueco más grande salte a la vista primero.
+    """
+    if df_cuadre is None or len(df_cuadre) == 0:
+        return _figura_vacia("Sin balanza y libro cargados a la vez para comparar.")
+
+    g = (
+        df_cuadre.groupby(["Mayor", "Nombre_Oficial"], as_index=False)
+        [["Balanza", "Libro", "Diferencia"]].sum()
+    )
+    g = g.sort_values("Diferencia", key=lambda s: s.abs(), ascending=True)
+    etiquetas = [f"{m} · {_trunc(n, 24)}" for m, n in zip(g["Mayor"], g["Nombre_Oficial"])]
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=g["Balanza"], y=etiquetas, orientation="h", name="Balanza",
+        marker_color=COLOR_LYON,
+        hovertemplate="<b>%{y}</b><br>Balanza: $%{x:,.0f}<extra></extra>",
+    ))
+    fig.add_trace(go.Bar(
+        x=g["Libro"], y=etiquetas, orientation="h", name="Libro de movimientos",
+        marker_color=COLOR_GASTOS_EMPRESA,
+        hovertemplate="<b>%{y}</b><br>Libro: $%{x:,.0f}<extra></extra>",
+    ))
+    fig.update_layout(
+        title=(
+            "<b>Balanza vs libro de movimientos, por cuenta mayor</b><br><sup>"
+            "Ordenado por el tamaño del hueco — la cifra para reclamarle a "
+            "Contabilidad</sup>"
+        ),
+        barmode="group", template="plotly_white",
+        height=max(320, 55 * len(g) + 140),
+        legend=dict(orientation="h", y=-0.12, x=0),
+        xaxis=dict(tickformat=_FMT_S, title="MXN"), yaxis=dict(title=""),
+        margin=dict(t=85, b=60, l=230, r=40),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
+def plot_cobranza_mix(df_cfdi):
+    """
+    Cómo se cobra la facturación del año: a crédito (PPD) contra de contado
+    (PUE), por mes. Una mezcla mayoritaria de PPD es una señal de flujo de
+    efectivo que hoy no aparece en ningún otro lado de la app.
+    """
+    if df_cfdi is None or len(df_cfdi) == 0:
+        return _figura_vacia("Sin facturación CFDI cargada para este análisis.")
+
+    d = df_cfdi[
+        df_cfdi["Tipo_Doc"].str.upper().str.startswith("FACTURA")
+        & ~df_cfdi["Cancelado"]
+    ].copy()
+    if len(d) == 0:
+        return _figura_vacia("Sin facturas vigentes para este análisis.")
+
+    d["_metodo"] = d["Metodo_Pago"].replace("", "Sin especificar")
+    g = (
+        d.groupby([d["_Mes"].astype(str), "_metodo"])["Importe_MXN"]
+        .sum().unstack(fill_value=0.0)
+    )
+    etiquetas = [label_mes(pd.Period(m, "M")) for m in g.index]
+    colores = {"PPD": _AMBER, "PUE": _GREEN, "Sin especificar": "#9E9E9E"}
+
+    fig = go.Figure()
+    for metodo in g.columns:
+        fig.add_trace(go.Bar(
+            x=etiquetas, y=g[metodo], name=metodo,
+            marker_color=colores.get(metodo, COLOR_LYON),
+            hovertemplate=f"<b>%{{x}}</b><br>{metodo}: $%{{y:,.0f}}<extra></extra>",
+        ))
+
+    total = float(g.to_numpy().sum())
+    ppd_pct = float(g["PPD"].sum()) / total * 100 if total and "PPD" in g.columns else 0.0
+
+    fig.update_layout(
+        title=(
+            "<b>Cómo se cobra la facturación</b><br><sup>"
+            f"PPD (a crédito) es el {ppd_pct:.0f}% del importe facturado</sup>"
+        ),
+        barmode="stack", template="plotly_white", height=380,
+        legend=dict(orientation="h", y=-0.18, x=0),
+        xaxis=dict(title=""), yaxis=dict(tickformat=_FMT_S, title="MXN"),
+        margin=dict(t=85, b=60, l=70, r=40),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig

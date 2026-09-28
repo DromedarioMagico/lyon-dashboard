@@ -255,6 +255,22 @@ def render_sidebar_status():
     else:
         st.sidebar.info("Contabilidad: no cargada")
 
+    if "df_balanza" in st.session_state:
+        _mb = st.session_state.get("df_balanza_meta", {})
+        st.sidebar.success(f"Balanza: {_archivo('balanza')}")
+        if _mb.get("periodos"):
+            st.sidebar.caption(f"Periodos {_mb['periodos']}")
+    else:
+        st.sidebar.info("Balanza: no cargada")
+
+    if "df_cfdi" in st.session_state:
+        _mx = st.session_state.get("df_cfdi_meta", {})
+        st.sidebar.success(f"CFDI: {_archivo('cfdi')}")
+        if _mx.get("periodos"):
+            st.sidebar.caption(f"Periodos {_mx['periodos']}")
+    else:
+        st.sidebar.info("CFDI (ventas/notas): no cargado")
+
     stats = get_stats()
     st.sidebar.markdown("---")
     st.sidebar.markdown("**Base de datos**")
