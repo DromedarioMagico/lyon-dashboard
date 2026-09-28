@@ -374,9 +374,10 @@ def _render_cuadre_balanza(df_balanza):
         resumen = (
             tot_solo.groupby(["Mayor", "Nombre_Oficial"], as_index=False)["Debe"].sum()
             .sort_values("Debe", ascending=False)
+            .rename(columns={"Debe": "Gasto"})
         )
         st.dataframe(
-            resumen.rename(columns={"Debe": "Gasto"}),
+            resumen,
             use_container_width=True, hide_index=True,
             column_config={"Gasto": st.column_config.NumberColumn(format="$%,.2f")},
         )
