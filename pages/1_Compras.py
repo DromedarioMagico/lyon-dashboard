@@ -1281,6 +1281,18 @@ with st.sidebar:
     meses_sel = render_periodo_filter("cmp", meses_disponibles)
 
     st.markdown("**Categorías**")
+    _cb1, _cb2 = st.columns(2)
+    with _cb1:
+        if st.button("Todas", key="cmp_cat_todas", use_container_width=True):
+            for cat in cats_opciones:
+                st.session_state[f"cmp_cat_{cat}"] = True
+            st.rerun()
+    with _cb2:
+        if st.button("Ninguna", key="cmp_cat_ninguna", use_container_width=True):
+            for cat in cats_opciones:
+                st.session_state[f"cmp_cat_{cat}"] = False
+            st.rerun()
+
     cats_sel = []
     for cat in cats_opciones:
         if st.checkbox(cat, value=True, key=f"cmp_cat_{cat}"):
