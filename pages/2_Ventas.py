@@ -6,6 +6,10 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from core.catalogos import COLOR_LYON, COLOR_VENTAS, label_mes
+from core.cruce_ventas import (
+    cruzar_pedidos_facturas, descomponer_sin_factura, bucket_antiguedad,
+    FACTURADO, SIN_FACTURA, SIN_OC,
+)
 from core.database import init_db
 from core.etl_ventas import cargar_ventas, aplicar_vendedores
 from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav, breadcrumb, render_periodo_filter, parse_semana_x
@@ -17,6 +21,9 @@ from core.plots import (
     plot_pareto_clientes_ventas,
     plot_ventas_por_vendedor,
     plot_heatmap_cliente_mes,
+    plot_embudo_facturacion,
+    plot_pedido_vs_facturado,
+    plot_cobranza_mix,
 )
 
 st.set_page_config(
@@ -44,6 +51,24 @@ _BLUE  = COLOR_LYON
 _GREEN = COLOR_VENTAS
 _RED   = "#C00000"
 _AMBER = "#E97132"
+_GRAY  = "#9E9E9E"
+
+
+def _marcar_base(fig, base):
+    """
+    Imprime la base monetaria activa (Con/Sin IVA) en la esquina de cada
+    gráfica — para que ninguna captura de pantalla viaje sin decir sobre qué
+    está medida. `fig` puede ser None (algunas gráficas se ocultan cuando no
+    hay suficientes datos); se pasa de largo sin tronar.
+    """
+    if fig is None:
+        return fig
+    fig.add_annotation(
+        text=f"Base: {base}", xref="paper", yref="paper", x=1, y=1.05,
+        showarrow=False, font=dict(size=10, color="#9CA3AF"), align="right",
+        xanchor="right",
+    )
+    return fig
 
 
 # ── Vista de detalle inline ───────────────────────────────────────────────────
@@ -94,9 +119,9 @@ def _render_detalle_cliente(df_ctx, cliente):
     # Ventas mensuales (agregación anual automática si el periodo es largo)
     with st.container(border=True):
         st.plotly_chart(
-            plot_barras_temporales(
+            _marcar_base(plot_barras_temporales(
                 df, "Importe_MXN", f"Ventas Mensuales — {display_name}", COLOR_VENTAS
-            ),
+            ), vta_base),
             use_container_width=True,
         )
 
@@ -123,7 +148,7 @@ def _render_detalle_cliente(df_ctx, cliente):
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             )
             fig2.update_yaxes(tickformat=",.0f", tickprefix="$")
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(_marcar_base(fig2, vta_base), use_container_width=True)
 
     # Tabla completa de pedidos
     with st.container(border=True):
@@ -143,6 +168,53 @@ def _render_detalle_cliente(df_ctx, cliente):
             },
             height=min(600, 48 + 36 * len(tbl)),
         )
+
+    # ── El ciclo de este cliente (condicional al reporte CFDI) ────────────────
+    if _pedidos_cx is not None:
+        _meses_ctx_c = set(df["_Mes"].unique())
+        _ped_cli = _pedidos_cx[
+            (_pedidos_cx["Cliente_Nombre"] == cliente) & (_pedidos_cx["_Mes"].isin(_meses_ctx_c))
+        ]
+        if len(_ped_cli):
+            with st.container(border=True):
+                st.markdown("##### Línea de tiempo: pedido → factura")
+                st.caption("Sin IVA — del cruce contra el reporte CFDI.")
+                _tbl_cli = _ped_cli[
+                    ["Clave", "Fecha", "Subtotal_MXN", "Estado_Cruce",
+                     "Facturado_MXN", "Dias_Ciclo", "Su pedido"]
+                ].sort_values("Fecha", ascending=False).rename(columns={
+                    "Subtotal_MXN": "Pedido sin IVA", "Facturado_MXN": "Facturado sin IVA",
+                    "Dias_Ciclo": "Ciclo (días)", "Su pedido": "OC",
+                })
+                st.dataframe(
+                    _tbl_cli, use_container_width=True, hide_index=True,
+                    column_config={
+                        "Fecha": st.column_config.DateColumn(format="DD-MMM-YYYY"),
+                        "Pedido sin IVA": st.column_config.NumberColumn(format="$%,.0f"),
+                        "Facturado sin IVA": st.column_config.NumberColumn(format="$%,.0f"),
+                        "Ciclo (días)": st.column_config.NumberColumn(format="%.0f"),
+                    },
+                    height=min(420, 45 + 36 * min(len(_tbl_cli), 10)),
+                )
+
+        _notas_cli = _df_cfdi_raw[
+            (_df_cfdi_raw["Tipo_Doc"] == "Nota Cred") & (~_df_cfdi_raw["Cancelado"]) &
+            (_df_cfdi_raw["Cliente_Nombre"] == cliente) &
+            (_df_cfdi_raw["_Mes"].isin(_meses_ctx_c))
+        ] if _df_cfdi_raw is not None else None
+        if _notas_cli is not None and len(_notas_cli):
+            with st.container(border=True):
+                st.markdown("##### Notas de crédito de este cliente")
+                st.dataframe(
+                    _notas_cli[["Fecha", "Folio", "Subtotal_MXN"]]
+                    .rename(columns={"Subtotal_MXN": "Monto sin IVA"})
+                    .sort_values("Fecha", ascending=False),
+                    use_container_width=True, hide_index=True,
+                    column_config={
+                        "Fecha": st.column_config.DateColumn(format="DD-MMM-YYYY"),
+                        "Monto sin IVA": st.column_config.NumberColumn(format="$%,.0f"),
+                    },
+                )
 
 
 # ── Vista de detalle por vendedor ────────────────────────────────────────────
@@ -192,14 +264,54 @@ def _render_detalle_vendedor(df_ctx, vendedor):
     k7.markdown(_kpi("Concentración",      f"{concentracion:.1f}%",   _BLUE),  unsafe_allow_html=True)
     k8.markdown(_kpi("Tasa Cumplimiento",  f"{tasa_cumpl:.1f}%",      _BLUE),  unsafe_allow_html=True)
 
+    # Fila 3 — el ciclo (condicional al reporte CFDI)
+    if _pedidos_cx is not None:
+        _meses_ctx = set(df["_Mes"].unique())
+        _ped_vend = _pedidos_cx[
+            (_pedidos_cx["Vendedor"] == vendedor) & (_pedidos_cx["_Mes"].isin(_meses_ctx))
+        ]
+        _ped_con_oc = _ped_vend[_ped_vend["Estado_Cruce"] != SIN_OC]
+        _pedido_oc_total = float(_ped_con_oc["Subtotal_MXN"].sum())
+        _facturado_oc_total = float(_ped_con_oc["Facturado_MXN"].sum())
+        _pct_convertido = (
+            _facturado_oc_total / _pedido_oc_total * 100 if _pedido_oc_total > 0 else None
+        )
+        _dias_vend = _ped_vend.loc[_ped_vend["Estado_Cruce"] == FACTURADO, "Dias_Ciclo"].dropna()
+        _ciclo_vend = float(_dias_vend.median()) if len(_dias_vend) else None
+        _remitido_vend, _ = descomponer_sin_factura(_ped_vend)
+        _remitido_vend_mxn = float(_remitido_vend["Subtotal_MXN"].sum())
+
+        st.markdown("<div style='margin-top:.75rem'></div>", unsafe_allow_html=True)
+        k9, k10, k11 = st.columns(3)
+        k9.markdown(_kpi(
+            "% pedido → factura",
+            f"{_pct_convertido:.0f}%" if _pct_convertido is not None else "—",
+            _GREEN if (_pct_convertido or 0) >= 80 else _AMBER,
+        ), unsafe_allow_html=True)
+        k10.markdown(_kpi(
+            "Ciclo mediano",
+            f"{_ciclo_vend:.0f} días" if _ciclo_vend is not None else "—",
+            _BLUE,
+        ), unsafe_allow_html=True)
+        k11.markdown(_kpi(
+            "Remitido sin facturar",
+            f"${_remitido_vend_mxn/1e6:,.2f}M" if _remitido_vend_mxn > 0 else "$0",
+            _GREEN if _remitido_vend_mxn == 0 else _AMBER,
+        ), unsafe_allow_html=True)
+        st.caption(
+            "Del cruce contra el reporte CFDI, sin IVA. Solo pedidos con OC "
+            "entran al % de conversión — los que no traen OC no se pueden "
+            "amarrar documento a documento."
+        )
+
     st.divider()
 
     # ── Ventas mensuales (agregación anual automática si el periodo es largo) ──
     with st.container(border=True):
         st.plotly_chart(
-            plot_barras_temporales(
+            _marcar_base(plot_barras_temporales(
                 df, "Importe_MXN", f"Ventas Mensuales — {vendedor}", COLOR_VENTAS
-            ),
+            ), vta_base),
             use_container_width=True,
         )
 
@@ -231,7 +343,7 @@ def _render_detalle_vendedor(df_ctx, vendedor):
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         )
         fig3.update_xaxes(tickformat=",.0f", tickprefix="$")
-        st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(_marcar_base(fig3, vta_base), use_container_width=True)
 
     # ── Tabla completa de pedidos ──────────────────────────────────────────────
     with st.container(border=True):
@@ -359,7 +471,7 @@ def _render_detalle_vendedor(df_ctx, vendedor):
 
         with st.container(border=True):
             st.caption("100 = mejor del equipo en esa dimensión · Verde = este vendedor · Azul punteado = promedio")
-            st.plotly_chart(fig_r, use_container_width=True)
+            st.plotly_chart(_marcar_base(fig_r, vta_base), use_container_width=True)
 
         # ── Tabla scoreboard completa ──────────────────────────────────────────
         with st.container(border=True):
@@ -556,7 +668,7 @@ def _render_detalle_semana_ventas(df_full, df, semana_str):
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         )
         pareto_v_event = st.plotly_chart(
-            fig_pareto_v, use_container_width=True,
+            _marcar_base(fig_pareto_v, vta_base), use_container_width=True,
             on_select="rerun", key="sem_v_pareto_chart",
         )
         if pareto_v_event and pareto_v_event.selection and pareto_v_event.selection.points:
@@ -617,7 +729,7 @@ def _render_detalle_semana_ventas(df_full, df, semana_str):
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             )
             vend_event = st.plotly_chart(
-                fig_vend, use_container_width=True,
+                _marcar_base(fig_vend, vta_base), use_container_width=True,
                 on_select="rerun", key="sem_v_vendedor_chart",
             )
             if vend_event and vend_event.selection and vend_event.selection.points:
@@ -715,13 +827,46 @@ with st.sidebar:
     st.markdown("### Filtros")
     meses_sel = render_periodo_filter("vta", meses_disponibles)
 
+    st.markdown("### Base monetaria")
+    vta_base = st.radio(
+        "¿Cómo medir los montos de esta página?",
+        ["Con IVA", "Sin IVA"], index=0, key="vta_base",
+        help="El SAE captura ambos. «Sin IVA» es la base comparable contra "
+             "Facturación y el reporte CFDI de Contabilidad — úsala para el "
+             "cruce pedido↔factura.",
+    )
+
     st.markdown("---")
     if st.button("🗑 Borrar datos y volver a subir", use_container_width=True):
         for key in ("df_ventas", "df_ventas_meta"):
             st.session_state.pop(key, None)
         st.rerun()
 
+# El SAE trae ambas bases (Importe_MXN con IVA, Subtotal_MXN sin). Se alias
+# UNA sola vez, aquí: todo lo que ya existía en esta página sigue leyendo
+# "Importe_MXN" sin cambiar una línea, y automáticamente respeta el switch —
+# incluidos los tres drill-downs, que reciben `df_full`/`_ctx_v` ya aliasado.
+if vta_base == "Sin IVA":
+    df_full = df_full.assign(Importe_MXN=df_full["Subtotal_MXN"])
+
+st.caption(f"📐 Midiendo **{vta_base}** — cámbialo en el sidebar.")
+
 _ctx_v = df_full[df_full["_Mes"].isin(meses_sel)] if meses_sel else df_full
+
+# ── Cruce pedido ↔ factura ──────────────────────────────────────────────────
+# Se calcula sobre df_full (no _ctx_v): "Fuera de rango" debe reflejar lo que
+# el CFDI en verdad cubre, no lo que el usuario tiene filtrado en este momento.
+# El monto de estos bloques SIEMPRE es sin IVA — es la base que usa el CFDI y
+# Facturación, y mezclarla con el switch de arriba confundiría más de lo que
+# ayudaría. Cada bloque lo deja explícito en su caption.
+_df_cfdi_raw = st.session_state.get("df_cfdi")
+if _df_cfdi_raw is not None:
+    _facturas_vigentes = _df_cfdi_raw[
+        (_df_cfdi_raw["Tipo_Doc"] == "Factura") & (~_df_cfdi_raw["Cancelado"])
+    ]
+    _pedidos_cx, _facturas_cx, _resumen_cx = cruzar_pedidos_facturas(df_full, _facturas_vigentes)
+else:
+    _pedidos_cx = _facturas_cx = _resumen_cx = None
 
 # ── Modo drill-down (respetan el filtro de período vía _ctx_v) ────────────────
 if st.session_state.get("drill_cliente"):
@@ -768,21 +913,249 @@ k6.markdown(_kpi("Vendedores Act.",  f"{vendedores_act:,}",          _BLUE),  un
 
 st.divider()
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  EL CICLO: DEL PEDIDO A LA FACTURA (condicional al reporte CFDI)
+# ══════════════════════════════════════════════════════════════════════════════
+# Todo este tramo se calcula al vuelo desde core/cruce_ventas.py y siempre en
+# base SIN IVA — es la comparable contra Facturación y el CFDI, y no depende
+# del switch de arriba (mezclar bases aquí confundiría más de lo que ayuda).
+if _pedidos_cx is None:
+    st.info(
+        "Sube el reporte CFDI de Ventas de Contabilidad (en **Gastos de Empresa**) "
+        "para ver el ciclo completo: qué pedidos ya se facturaron, cuáles siguen "
+        "pendientes y cuánto tardan."
+    )
+else:
+    _pedidos_periodo = _pedidos_cx[_pedidos_cx["_Mes"].isin(meses_sel)] if meses_sel else _pedidos_cx
+
+    # El embudo compara pedido vs facturado SOLO entre pedidos con OC: un
+    # pedido sin OC nunca puede tener Facturado_MXN > 0 (no hay documento con
+    # el que amarrarlo), así que mezclarlo aquí hundiría la conversión % de
+    # forma artificial. Se tratan aparte, más abajo.
+    _pedidos_con_oc = _pedidos_periodo[_pedidos_periodo["Estado_Cruce"] != SIN_OC]
+    _ped_total  = float(_pedidos_con_oc["Subtotal_MXN"].sum())
+    _fact_total = float(_pedidos_con_oc["Facturado_MXN"].sum())
+    _sin_fact_total = float(
+        _pedidos_periodo.loc[_pedidos_periodo["Estado_Cruce"] == SIN_FACTURA, "Subtotal_MXN"].sum()
+    )
+    _remitido_sf, _emitido_sf = descomponer_sin_factura(_pedidos_periodo)
+    _dias_validos = _pedidos_periodo.loc[
+        _pedidos_periodo["Estado_Cruce"] == FACTURADO, "Dias_Ciclo"
+    ].dropna()
+    _ciclo_mediano = float(_dias_validos.median()) if len(_dias_validos) else None
+
+    # ── A. Embudo del pedido a la factura ───────────────────────────────────────
+    st.markdown("### El ciclo: del pedido a la factura")
+    st.caption(
+        "Cruce documento a documento por la orden de compra del cliente — el "
+        "SAE y el CFDI capturan la misma OC por separado. Base **siempre sin "
+        "IVA**. No incluye pedidos sin OC (se tratan aparte, más abajo): para "
+        "esos no hay forma de amarrar un documento con otro."
+    )
+    ea, eb, ec, ed = st.columns(4)
+    ea.markdown(_kpi("Pedido (sin IVA)", f"${_ped_total/1e6:,.2f}M", _BLUE), unsafe_allow_html=True)
+    eb.markdown(_kpi("Facturado (sin IVA)", f"${_fact_total/1e6:,.2f}M", _GREEN), unsafe_allow_html=True)
+    ec.markdown(_kpi("Sin factura (con OC)", f"${_sin_fact_total/1e6:,.2f}M", _AMBER), unsafe_allow_html=True)
+    ed.markdown(_kpi(
+        "Ciclo mediano",
+        f"{_ciclo_mediano:.0f} días" if _ciclo_mediano is not None else "—",
+        _BLUE,
+    ), unsafe_allow_html=True)
+
+    with st.container(border=True):
+        st.plotly_chart(
+            plot_embudo_facturacion(_ped_total, _fact_total, _sin_fact_total),
+            use_container_width=True,
+        )
+
+    # ── B. Pedidos remitidos sin factura — la lista de dinero ───────────────────
+    st.markdown("#### Pedidos remitidos sin factura")
+    st.caption(
+        "Lo entregado (Remitido) que no aparece amarrado a ninguna factura. Es "
+        "el único bucket accionable: un pedido *Emitido* todavía no se remite, "
+        "así que es normal que no tenga factura."
+    )
+    if len(_remitido_sf) == 0:
+        st.success("Todo lo remitido con OC en el periodo ya tiene factura amarrada.")
+    else:
+        _rem = _remitido_sf.copy()
+        _hoy = _pedidos_periodo["Fecha"].max()
+        _rem["Días"] = (_hoy - _rem["Fecha"]).dt.days.clip(lower=0)
+        _rem["Antigüedad"] = _rem["Días"].apply(bucket_antiguedad)
+        with st.container(border=True):
+            _resumen_edad = (
+                _rem.groupby("Antigüedad")["Subtotal_MXN"].agg(["size", "sum"])
+                .reindex(["0-30 días", "31-60 días", "61-90 días", "90+ días"])
+                .fillna(0)
+            )
+            _cols_edad = st.columns(4)
+            for _col, (_bucket, _row) in zip(_cols_edad, _resumen_edad.iterrows()):
+                _color = _GREEN if _bucket == "0-30 días" else (
+                    _AMBER if _bucket in ("31-60 días", "61-90 días") else _RED
+                )
+                _col.markdown(_kpi(
+                    _bucket, f"${_row['sum']/1e6:,.2f}M ({int(_row['size'])})", _color,
+                ), unsafe_allow_html=True)
+
+            _tabla_rem = _rem[
+                ["Clave", "Fecha", "Cliente_Display", "Vendedor", "Subtotal_MXN", "Su pedido", "Días"]
+            ].sort_values("Subtotal_MXN", ascending=False).rename(
+                columns={"Cliente_Display": "Cliente", "Subtotal_MXN": "Monto sin IVA",
+                         "Su pedido": "OC"}
+            )
+            st.dataframe(
+                _tabla_rem, use_container_width=True, hide_index=True,
+                column_config={
+                    "Fecha": st.column_config.DateColumn(format="DD-MMM-YYYY"),
+                    "Monto sin IVA": st.column_config.NumberColumn(format="$%,.0f"),
+                },
+                height=min(480, 45 + 36 * min(len(_tabla_rem), 12)),
+            )
+    if len(_emitido_sf):
+        st.caption(
+            f"Además, **{len(_emitido_sf)}** pedido(s) por "
+            f"**${_emitido_sf['Subtotal_MXN'].sum()/1e6:,.2f}M** siguen en estatus "
+            f"*Emitido* — aún no se remiten, es normal que no tengan factura."
+        )
+
+    _sin_oc_periodo = _pedidos_periodo[_pedidos_periodo["Estado_Cruce"] == SIN_OC]
+    if len(_sin_oc_periodo):
+        st.caption(
+            f"📎 **{len(_sin_oc_periodo)}** pedido(s) por "
+            f"**${_sin_oc_periodo['Subtotal_MXN'].sum()/1e6:,.2f}M** no traen número "
+            f"de OC — hay clientes que no lo emiten. No es una alerta; se comparan "
+            f"por cliente y mes en el bloque de abajo, no documento a documento."
+        )
+
+    # ── C. Cliente: pedido vs facturado ──────────────────────────────────────────
+    st.markdown("#### Cliente: pedido vs facturado")
+    st.caption(
+        "Por cliente: lo pedido contra lo facturado. Para los clientes sin OC, "
+        "se usa el total facturado del cliente en el periodo (cliente × mes) en "
+        "vez del cruce documento a documento."
+    )
+    _por_cliente_ped = _pedidos_periodo.groupby("Cliente_Display")["Subtotal_MXN"].sum()
+    _fact_periodo_cli = (
+        _facturas_vigentes[_facturas_vigentes["_Mes"].isin(meses_sel)]
+        if meses_sel else _facturas_vigentes
+    )
+    _por_cliente_fact = _fact_periodo_cli.groupby("Cliente_Display")["Subtotal_MXN"].sum()
+    _cross_cli = pd.DataFrame({
+        "Cliente": _por_cliente_ped.index,
+        "Pedido_MXN": _por_cliente_ped.values,
+    })
+    _cross_cli["Facturado_MXN"] = _cross_cli["Cliente"].map(_por_cliente_fact).fillna(0.0)
+
+    with st.container(border=True):
+        st.plotly_chart(plot_pedido_vs_facturado(_cross_cli), use_container_width=True)
+
+    # ── D. Ciclo pedido → factura ─────────────────────────────────────────────
+    if len(_dias_validos) > 0:
+        st.markdown("#### Ciclo pedido → factura")
+        st.caption(
+            f"Cuánto tarda un pedido en convertirse en factura. Mediana "
+            f"**{_ciclo_mediano:.0f} días** sobre {len(_dias_validos)} pedido(s) "
+            f"facturado(s) con OC."
+        )
+        with st.container(border=True):
+            _fig_ciclo = px.histogram(
+                _dias_validos, nbins=30, color_discrete_sequence=[_BLUE],
+            )
+            _fig_ciclo.update_layout(
+                title="<b>Distribución del ciclo pedido → factura</b>",
+                template="plotly_white", height=340, showlegend=False,
+                xaxis_title="Días", yaxis_title="Pedidos",
+                margin=dict(t=60, b=40, l=60, r=40),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(_fig_ciclo, use_container_width=True)
+
+        _fact_ok = _pedidos_periodo[_pedidos_periodo["Estado_Cruce"] == FACTURADO].dropna(
+            subset=["Dias_Ciclo"]
+        )
+        _cc1, _cc2 = st.columns(2)
+        with _cc1:
+            st.markdown("##### Mediana por vendedor")
+            _por_vend_ciclo = (
+                _fact_ok[_fact_ok["Vendedor"] != "Sin asignar"]
+                .groupby("Vendedor")["Dias_Ciclo"].median()
+                .sort_values().reset_index()
+            )
+            st.dataframe(
+                _por_vend_ciclo, use_container_width=True, hide_index=True,
+                column_config={"Dias_Ciclo": st.column_config.NumberColumn("Días (mediana)", format="%.0f")},
+                height=min(320, 45 + 36 * len(_por_vend_ciclo)),
+            )
+        with _cc2:
+            st.markdown("##### Mediana por cliente")
+            _por_cli_ciclo = (
+                _fact_ok.groupby("Cliente_Display")["Dias_Ciclo"].median()
+                .sort_values().reset_index()
+            )
+            st.dataframe(
+                _por_cli_ciclo, use_container_width=True, hide_index=True,
+                column_config={"Dias_Ciclo": st.column_config.NumberColumn("Días (mediana)", format="%.0f")},
+                height=min(320, 45 + 36 * len(_por_cli_ciclo)),
+            )
+
+    # ── E. Después de la factura: notas de crédito y forma de cobro ────────────
+    st.markdown("#### Después de la factura")
+    st.caption(
+        "Lo que pasa una vez facturado: devoluciones/descuentos y si el cobro "
+        "es de contado o a crédito. Del reporte CFDI, año completo."
+    )
+    _notas_periodo = _df_cfdi_raw[
+        (_df_cfdi_raw["Tipo_Doc"] == "Nota Cred") & (~_df_cfdi_raw["Cancelado"])
+    ]
+    if meses_sel:
+        _notas_periodo = _notas_periodo[_notas_periodo["_Mes"].isin(meses_sel)]
+
+    _nc1, _nc2 = st.columns(2)
+    with _nc1:
+        st.markdown("##### Notas de crédito por cliente")
+        if len(_notas_periodo) == 0:
+            st.success("Sin notas de crédito vigentes en el periodo.")
+        else:
+            _nc_por_cli = (
+                _notas_periodo.groupby("Cliente_Display")["Subtotal_MXN"].agg(["size", "sum"])
+                .sort_values("sum", ascending=False).reset_index()
+                .rename(columns={"Cliente_Display": "Cliente", "size": "N", "sum": "Monto sin IVA"})
+            )
+            _fact_por_cli_periodo = _fact_periodo_cli.groupby("Cliente_Display")["Subtotal_MXN"].sum()
+            _nc_por_cli["% de lo facturado"] = _nc_por_cli.apply(
+                lambda r: r["Monto sin IVA"] / _fact_por_cli_periodo.get(r["Cliente"], 0) * 100
+                if _fact_por_cli_periodo.get(r["Cliente"], 0) else 0.0,
+                axis=1,
+            )
+            st.dataframe(
+                _nc_por_cli, use_container_width=True, hide_index=True,
+                column_config={
+                    "Monto sin IVA": st.column_config.NumberColumn(format="$%,.0f"),
+                    "% de lo facturado": st.column_config.NumberColumn(format="%.1f%%"),
+                },
+                height=min(360, 45 + 36 * len(_nc_por_cli)),
+            )
+    with _nc2:
+        st.markdown("##### Cómo se cobra")
+        st.plotly_chart(plot_cobranza_mix(_facturas_vigentes), use_container_width=True)
+
+st.divider()
+
 # ── Gráficas ──────────────────────────────────────────────────────────────────
 with st.container(border=True):
     st.plotly_chart(
-        plot_donut_clientes_ventas(df, venta_total, n_clientes_80pct),
+        _marcar_base(plot_donut_clientes_ventas(df, venta_total, n_clientes_80pct), vta_base),
         use_container_width=True,
     )
 
-fig_resto = plot_donut_resto_clientes(df, venta_total)
+fig_resto = _marcar_base(plot_donut_resto_clientes(df, venta_total), vta_base)
 if fig_resto is not None:
     with st.container(border=True):
         st.plotly_chart(fig_resto, use_container_width=True)
 
 with st.container(border=True):
     sem_v_event = st.plotly_chart(
-        plot_curva_semanal_ventas(df),
+        _marcar_base(plot_curva_semanal_ventas(df), vta_base),
         use_container_width=True,
         on_select="rerun",
         selection_mode="points",
@@ -826,7 +1199,10 @@ with st.container(border=True):
                 st.toast("Esa semana no tiene pedidos.", icon="⚠️")
 
 with st.container(border=True):
-    st.plotly_chart(plot_pareto_clientes_ventas(df, venta_total), use_container_width=True)
+    st.plotly_chart(
+        _marcar_base(plot_pareto_clientes_ventas(df, venta_total), vta_base),
+        use_container_width=True,
+    )
 
 # Resto de clientes
 ranking = df.groupby("Cliente_Nombre")["Importe_MXN"].sum().sort_values(ascending=False)
@@ -858,7 +1234,10 @@ if len(resto_clientes) > 0:
         )
 
 with st.container(border=True):
-    st.plotly_chart(plot_ventas_por_vendedor(df, venta_total), use_container_width=True)
+    st.plotly_chart(
+        _marcar_base(plot_ventas_por_vendedor(df, venta_total), vta_base),
+        use_container_width=True,
+    )
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  PRODUCTIVIDAD DE VENDEDORES
@@ -883,6 +1262,36 @@ if len(_vend_df) > 0:
                   if r["Ventas_Brutas"] > 0 else 0,
         axis=1,
     )
+
+    # ── El ciclo por vendedor (condicional al reporte CFDI) ─────────────────
+    _cols_ciclo = ["Vendedor", "Ventas_Brutas", "Comisiones",
+                   "Venta_Neta", "Ratio_Comision", "Pedidos"]
+    _cfg_ciclo = {}
+    if _pedidos_cx is not None:
+        _ped_periodo_v = _pedidos_cx[_pedidos_cx["_Mes"].isin(meses_sel)] if meses_sel else _pedidos_cx
+        _con_oc_v = _ped_periodo_v[_ped_periodo_v["Estado_Cruce"] != SIN_OC]
+        _por_vend = _con_oc_v.groupby("Vendedor").agg(
+            _ped_oc=("Subtotal_MXN", "sum"), _fact_oc=("Facturado_MXN", "sum"),
+        )
+        _pct_vend = (_por_vend["_fact_oc"] / _por_vend["_ped_oc"] * 100).where(_por_vend["_ped_oc"] > 0)
+        _ciclo_vend_s = (
+            _ped_periodo_v[_ped_periodo_v["Estado_Cruce"] == FACTURADO]
+            .groupby("Vendedor")["Dias_Ciclo"].median()
+        )
+        _remitido_por_vend, _ = descomponer_sin_factura(_ped_periodo_v)
+        _remitido_vend_s = _remitido_por_vend.groupby("Vendedor")["Subtotal_MXN"].sum()
+
+        _vend_df["% Pedido→Factura"] = _vend_df["Vendedor"].map(_pct_vend)
+        _vend_df["Ciclo (días)"]     = _vend_df["Vendedor"].map(_ciclo_vend_s)
+        _vend_df["Remitido s/factura"] = _vend_df["Vendedor"].map(_remitido_vend_s).fillna(0.0)
+
+        _cols_ciclo += ["% Pedido→Factura", "Ciclo (días)", "Remitido s/factura"]
+        _cfg_ciclo = {
+            "% Pedido→Factura":   st.column_config.NumberColumn(format="%.0f%%"),
+            "Ciclo (días)":       st.column_config.NumberColumn(format="%.0f"),
+            "Remitido s/factura": st.column_config.NumberColumn(format="$%,.0f"),
+        }
+
     _vend_df = _vend_df.sort_values("Ventas_Brutas", ascending=False).reset_index(drop=True)
     _vend_df.index = _vend_df.index + 1
 
@@ -891,10 +1300,12 @@ if len(_vend_df) > 0:
     with _col_vl:
         with st.container(border=True):
             st.markdown("##### Ranking de vendedores")
-            st.caption("Venta Neta = Ventas Brutas − Comisiones")
+            st.caption(
+                "Venta Neta = Ventas Brutas − Comisiones"
+                + ("  ·  el ciclo es sin IVA, del cruce contra el CFDI" if _pedidos_cx is not None else "")
+            )
             st.dataframe(
-                _vend_df[["Vendedor", "Ventas_Brutas", "Comisiones",
-                           "Venta_Neta", "Ratio_Comision", "Pedidos"]],
+                _vend_df[_cols_ciclo],
                 use_container_width=True,
                 hide_index=False,
                 column_config={
@@ -904,6 +1315,7 @@ if len(_vend_df) > 0:
                     "Venta_Neta":     st.column_config.NumberColumn("Venta Neta",  format="$%,.0f"),
                     "Ratio_Comision": st.column_config.NumberColumn("% Comisión",  format="%.1f%%"),
                     "Pedidos":        st.column_config.NumberColumn("Pedidos",      format="%d"),
+                    **_cfg_ciclo,
                 },
                 height=min(500, 52 + 36 * len(_vend_df)),
             )
@@ -938,12 +1350,15 @@ if len(_vend_df) > 0:
                 margin=dict(t=70, b=40, l=140, r=40),
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             )
-            st.plotly_chart(_fig_vp, use_container_width=True)
+            st.plotly_chart(_marcar_base(_fig_vp, vta_base), use_container_width=True)
 else:
     st.info("No hay pedidos con vendedor asignado en el periodo seleccionado.")
 
 with st.container(border=True):
-    st.plotly_chart(plot_heatmap_cliente_mes(df), use_container_width=True)
+    st.plotly_chart(
+        _marcar_base(plot_heatmap_cliente_mes(df), vta_base),
+        use_container_width=True,
+    )
 
 # Top 10 pedidos
 with st.container(border=True):

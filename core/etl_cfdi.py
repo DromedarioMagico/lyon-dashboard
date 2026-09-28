@@ -56,7 +56,7 @@ def cargar_cfdi(uploaded_file):
 
     df: Fecha · _Mes · Folio · UUID · Cliente_Codigo (Int64) · Cliente_Nombre ·
         Cliente_Display · Subtotal_MXN · IVA_MXN · Importe_MXN · Tipo_Doc ·
-        Estatus · Cancelado (bool) · Metodo_Pago · Forma_Pago
+        Estatus · Cancelado (bool) · Metodo_Pago · Forma_Pago · Su_Pedido
 
     Itera TODAS las hojas del archivo y las concatena: el reporte de Ventas trae
     una hoja por mes, el de Notas de Crédito una sola. Levanta ValueError si
@@ -134,6 +134,11 @@ def cargar_cfdi(uploaded_file):
     df["Cancelado"] = df["Estatus"].str.upper().str.startswith("CANCEL")
     df["Metodo_Pago"] = raw_all.get("MÉTODO PAGO", "").fillna("").astype(str).str.strip()
     df["Forma_Pago"] = raw_all.get("FORMA DE PAGO SAT", "").fillna("").astype(str).str.strip()
+    # La orden de compra del cliente — es la llave que amarra esta factura a su
+    # pedido en el SAE (que la guarda en su propia columna "Su pedido"). Cruda,
+    # sin normalizar: eso lo hace core/cruce_ventas.py, que sabe extraer
+    # varios números de un mismo texto ("OP.19777 / OC.16406").
+    df["Su_Pedido"] = raw_all.get("SU PEDIDO", "").fillna("").astype(str).str.strip()
 
     # Un UUID duplicado de verdad (no vacío, repetido) es la única señal digna de
     # advertencia — varias filas SIN uuid (típico de un CFDI cancelado) no son

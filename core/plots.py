@@ -852,11 +852,23 @@ def plot_embudo_facturacion(pedidos, facturado, pendiente):
     cargado — entonces se muestra solo Facturado + Pendiente por facturar).
     """
     if pedidos and pedidos > 0:
-        gap      = pedidos - facturado
-        labels   = ["Pedidos SAE<br>(sin IVA)", "Sin facturar", "Facturado"]
+        gap = pedidos - facturado
+        # Un cliente puede reusar la misma OC en más de un pedido, o
+        # consolidar varias OC viejas en un pedido nuevo. cruce_ventas.py
+        # cuenta a propósito el monto facturado completo en cada pedido que
+        # comparte esa OC ("el dinero es real, solo la fecha es ambigua"),
+        # así que sumado a nivel periodo el Facturado puede rebasar ligeramente
+        # al Pedido. Cuando pasa, no es "sin facturar" negativo: es ese ajuste.
+        if gap >= 0:
+            label_gap = "Sin facturar"
+            text_gap  = f"-${gap/1e6:,.2f}M"
+        else:
+            label_gap = "Ajuste<br>(OC compartida)"
+            text_gap  = f"+${abs(gap)/1e6:,.2f}M"
+        labels   = ["Pedidos SAE<br>(sin IVA)", label_gap, "Facturado"]
         values   = [pedidos, -gap, 0]
         measures = ["absolute", "relative", "total"]
-        texts    = [f"${pedidos/1e6:,.2f}M", f"-${gap/1e6:,.2f}M", f"${facturado/1e6:,.2f}M"]
+        texts    = [f"${pedidos/1e6:,.2f}M", text_gap, f"${facturado/1e6:,.2f}M"]
         conv     = facturado / pedidos * 100 if pedidos else 0
         sub      = f"Conversión pedido → factura: <b>{conv:.1f}%</b> · base sin IVA"
     else:
