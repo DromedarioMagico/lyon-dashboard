@@ -11,6 +11,7 @@ from core.database import (
     delete_vendedor_cliente, bulk_upsert_clasificaciones,
     get_cuentas_contables, bulk_upsert_cuentas_contables,
 )
+from core.etl_balanza import totales_por_cuenta
 from core.etl_compras import aplicar_clasificaciones
 from core.etl_ventas import aplicar_vendedores
 from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav
@@ -43,23 +44,33 @@ st.markdown(
 def _render_cuentas_contables(prefijo="cta"):
     """
     Catálogo de cuentas contables: nombrar cada cuenta que aparece en el libro de
-    Contabilidad y decidir si cuenta como gasto del periodo.
+    Contabilidad o en la balanza de comprobación, y decidir si cuenta como gasto
+    del periodo.
 
-    El universo de filas sale del libro cargado, ordenado por monto descendente
-    para clasificar primero lo que más pesa. Mismo patrón que
-    `_render_tabla_editable`: `num_rows="fixed"`, diff posicional, la llave del
-    editor embebe el filtro.
+    El universo de filas es la UNIÓN de las cuentas del libro y las cuentas
+    auxiliares de la balanza (nunca sus mayores — un mayor ya es la suma de sus
+    auxiliares, así que hacerlo clasificable permitiría contar el gasto dos
+    veces). Antes de la Fase 2 el universo salía solo del libro: si solo se
+    subía la balanza, esta sección no tenía nada que mostrar, aunque la balanza
+    sí trae cuentas propias (nómina, depreciación, fletes…) que el libro nunca
+    menciona. Ordenado por monto descendente para clasificar primero lo que más
+    pesa. Mismo patrón que `_render_tabla_editable`: `num_rows="fixed"`, diff
+    posicional, la llave del editor embebe el filtro.
     """
-    # El libro vive en la sesión: si no se ha subido, no hay cuentas que nombrar.
-    df_ctb = st.session_state.get("df_contabilidad")
-    if df_ctb is None or len(df_ctb) == 0:
+    df_ctb     = st.session_state.get("df_contabilidad")
+    df_balanza = st.session_state.get("df_balanza")
+    tiene_libro   = df_ctb is not None and len(df_ctb) > 0
+    tiene_balanza = df_balanza is not None and len(df_balanza) > 0
+
+    if not tiene_libro and not tiene_balanza:
         st.info(
-            "Todavía no hay base de contabilidad cargada en esta sesión, así que no "
-            "hay cuentas que nombrar. Súbela en **Gastos de Empresa**. Lo que ya "
-            "hayas clasificado antes sigue guardado y reaparece al cargar el libro."
+            "Todavía no hay libro contable ni balanza de comprobación cargados en "
+            "esta sesión, así que no hay cuentas que nombrar. Súbelos en **Carga "
+            "de Archivos**. Lo que ya hayas clasificado antes sigue guardado y "
+            "reaparece al volver a cargarlos."
         )
-        if st.button("Ir a Gastos de Empresa", key=f"{prefijo}_goto"):
-            st.switch_page("pages/5_Gastos_de_Empresa.py")
+        if st.button("Ir a Carga de Archivos", key=f"{prefijo}_goto"):
+            st.switch_page("app.py")
         return
 
     cuentas = get_cuentas_contables()
@@ -67,11 +78,12 @@ def _render_cuentas_contables(prefijo="cta"):
     # La balanza le pone nombre oficial a cada cuenta y agrupa por mayor —
     # cuando está cargada, se usa para pre-llenar en vez de dejar en blanco.
     # Nunca pisa un nombre que el usuario ya guardó (ver abajo, "or" corto-
-    # circuita si `cuentas` ya trae algo).
-    df_balanza = st.session_state.get("df_balanza")
+    # circuita si `cuentas` ya trae algo). También es la fuente de las cuentas
+    # auxiliares que el libro no trae.
     _bal_nombre_por_cuenta = {}
     _bal_mayor_nombre = {}
-    if df_balanza is not None and len(df_balanza):
+    _bal_aux_debe = None
+    if tiene_balanza:
         _bal_nombre_por_cuenta = (
             df_balanza.drop_duplicates("Cuenta", keep="last")
             .set_index("Cuenta")["Nombre_Oficial"].to_dict()
@@ -81,21 +93,44 @@ def _render_cuentas_contables(prefijo="cta"):
             .drop_duplicates("Mayor", keep="last")
         )
         _bal_mayor_nombre = dict(zip(_mayores_df["Mayor"], _mayores_df["Nombre_Oficial"]))
+        _bal_aux_debe = totales_por_cuenta(df_balanza).groupby("Cuenta")["Debe"].sum()
 
     # Una fila por cuenta vista en el libro, con su peso y sus proveedores
     # principales — sin eso el usuario no tiene con qué decidir el nombre.
-    agg = (
-        df_ctb.groupby("Cuenta")
-        .agg(Monto=("Monto_MXN", "sum"), Movimientos=("Monto_MXN", "size"))
-        .reset_index()
-    )
-    top_prov = (
-        df_ctb.groupby(["Cuenta", "Proveedor"])["Monto_MXN"].sum()
-        .reset_index().sort_values("Monto_MXN", ascending=False)
-        .groupby("Cuenta")["Proveedor"]
-        .apply(lambda s: ", ".join(s.head(3)))
-    )
-    agg["Proveedores"] = agg["Cuenta"].map(top_prov).fillna("")
+    if tiene_libro:
+        agg = (
+            df_ctb.groupby("Cuenta")
+            .agg(Monto=("Monto_MXN", "sum"), Movimientos=("Monto_MXN", "size"))
+            .reset_index()
+        )
+        top_prov = (
+            df_ctb.groupby(["Cuenta", "Proveedor"])["Monto_MXN"].sum()
+            .reset_index().sort_values("Monto_MXN", ascending=False)
+            .groupby("Cuenta")["Proveedor"]
+            .apply(lambda s: ", ".join(s.head(3)))
+        )
+        agg["Proveedores"] = agg["Cuenta"].map(top_prov).fillna("")
+        agg["Origen"] = "Libro"
+    else:
+        agg = pd.DataFrame(columns=["Cuenta", "Monto", "Movimientos", "Proveedores", "Origen"])
+
+    # Cuentas que la balanza trae y el libro nunca menciona: se agregan aparte,
+    # sin proveedores ni movimientos (la balanza no trae ese detalle — por eso
+    # no reemplaza al libro, solo lo completa). Las que SÍ están en las dos
+    # fuentes se marcan "Ambos"; el Monto de esas sigue siendo el del libro.
+    if _bal_aux_debe is not None:
+        _en_libro = set(agg["Cuenta"])
+        _solo_bal = sorted(set(_bal_aux_debe.index) - _en_libro)
+        if _solo_bal:
+            extra = pd.DataFrame({
+                "Cuenta":      _solo_bal,
+                "Monto":       [float(_bal_aux_debe[c]) for c in _solo_bal],
+                "Movimientos": 0,
+                "Proveedores": "",
+                "Origen":      "Balanza",
+            })
+            agg = pd.concat([agg, extra], ignore_index=True)
+        agg.loc[agg["Cuenta"].isin(set(_bal_aux_debe.index) & _en_libro), "Origen"] = "Ambos"
 
     agg["Nombre"] = [
         (cuentas.get(c, {}).get("nombre", "") or "").strip()
@@ -141,27 +176,35 @@ def _render_cuentas_contables(prefijo="cta"):
         )
         st.warning(
             f"**{n_pend} de {len(agg)} cuentas sin clasificar en la base** — "
-            f"${m_pend/1e6:,.2f}M del libro todavía no cuentan como gasto.{_extra}"
+            f"${m_pend/1e6:,.2f}M (libro + balanza) todavía no cuentan como gasto.{_extra}"
         )
 
         st.caption(
             "Atajo: en este catálogo las cuentas `6xxx` son de resultados (gasto "
-            "del periodo) y las `1xxx` de balance (anticipos). Puedes marcarlas "
-            "así de un golpe y luego corregir a mano las que no cuadren."
+            "del periodo) y las `1xxx` de balance (anticipos) — con la excepción "
+            "de depreciación y amortización (`6003`/`6005`), que aunque son "
+            "familia `6xxx` se proponen como *No operativo* porque no entran al "
+            "margen. Puedes marcarlas así de un golpe y luego corregir a mano las "
+            "que no cuadren."
         )
         if st.button(
             f"Marcar las {n_pend} pendientes: 6xxx = Gasto operativo · "
-            f"1xxx = No operativo",
+            f"6003/6005 (D&A) y 1xxx = No operativo",
             key=f"{prefijo}_btn_prefijo",
         ):
+            def _naturaleza_propuesta(cuenta):
+                c = str(cuenta)
+                if c.startswith("1") or c.startswith(("6003", "6005")):
+                    return NAT_NO_OPERATIVO
+                return NAT_GASTO
+
             _pend = agg[agg["Naturaleza"] == NAT_SIN_CLASIFICAR]
             filas = [
                 (
                     r["Cuenta"],
                     r["Nombre"] or r["Cuenta"],
                     r["Categoria"],
-                    NAT_NO_OPERATIVO if str(r["Cuenta"]).startswith("1")
-                    else NAT_GASTO,
+                    _naturaleza_propuesta(r["Cuenta"]),
                     r["Trato"],
                     "",
                 )
@@ -176,7 +219,7 @@ def _render_cuentas_contables(prefijo="cta"):
             st.rerun()
     else:
         st.success(
-            f"Las {len(agg)} cuentas del libro ya están clasificadas y guardadas."
+            f"Las {len(agg)} cuentas (libro + balanza) ya están clasificadas y guardadas."
         )
 
     st.caption(
@@ -230,7 +273,7 @@ def _render_cuentas_contables(prefijo="cta"):
     # llenaba Nombre y Categoría creyendo que con eso quedaba clasificada.
     _cols_bal = ["Nombre_Balanza", "Mayor"] if _bal_nombre_por_cuenta else []
     edit_df = tabla[
-        ["Cuenta", "Nombre"] + _cols_bal +
+        ["Cuenta", "Origen", "Nombre"] + _cols_bal +
         ["Naturaleza", "Categoria", "Trato", "Monto", "Movimientos", "Proveedores"]
     ].copy()
 
@@ -262,6 +305,12 @@ def _render_cuentas_contables(prefijo="cta"):
         key=_editor_key,
         column_config={
             "Cuenta":     st.column_config.TextColumn("Cuenta", disabled=True),
+            "Origen":     st.column_config.TextColumn(
+                "Origen", disabled=True, width="small",
+                help="De dónde sale esta fila: Libro, Balanza, o Ambos. Las de "
+                     "solo Balanza no traen proveedores ni movimientos — la "
+                     "balanza no guarda ese detalle.",
+            ),
             "Nombre":     st.column_config.TextColumn(
                 "Nombre", width="medium",
                 help="Cómo se llama esta cuenta en el lenguaje del negocio. Si la "
@@ -328,8 +377,8 @@ def _render_cuentas_contables(prefijo="cta"):
             bulk_upsert_cuentas_contables(filas)
             st.session_state.pop(_editor_key, None)
             st.success(
-                f"✅ {cambios} cuenta(s) actualizada(s). Vuelve a publicar en "
-                f"**Gastos de Empresa** para que el cambio llegue al costo operativo."
+                f"✅ {cambios} cuenta(s) actualizada(s). Ya se reflejan en "
+                f"**Cuadre Contable** y donde sea que se use el costo operativo."
             )
             st.rerun()
         else:
@@ -340,16 +389,17 @@ if "df_compras" not in st.session_state:
     st.warning(
         "Carga el archivo de **Compras** para clasificar proveedores y vendedores."
     )
-    if st.button("Ir a Compras", use_container_width=False):
-        st.switch_page("pages/1_Compras.py")
+    if st.button("Ir a Carga de Archivos", use_container_width=False):
+        st.switch_page("app.py")
 
     # El catálogo de cuentas contables no depende del SAE: sale del libro de
-    # Contabilidad, que vive en la BD. Se muestra solo para no dejarlo inalcanzable.
+    # Contabilidad y/o la balanza de comprobación. Se muestra solo para no
+    # dejarlo inalcanzable.
     st.divider()
     st.markdown("### Catálogo de cuentas contables")
     st.caption(
-        "Esta parte sí funciona sin el archivo de Compras: las cuentas salen de la "
-        "base de Contabilidad."
+        "Esta parte sí funciona sin el archivo de Compras: las cuentas salen del "
+        "libro contable y/o la balanza de comprobación."
     )
     _render_cuentas_contables("cta_solo")
     st.stop()
@@ -868,8 +918,8 @@ with tab_vend:
         st.warning(
             "Carga también el archivo de Ventas para gestionar asignaciones de vendedores."
         )
-        if st.button("Ir a Ventas", key="btn_go_ventas"):
-            st.switch_page("pages/2_Ventas.py")
+        if st.button("Ir a Carga de Archivos", key="btn_go_ventas"):
+            st.switch_page("app.py")
     else:
         df_v = aplicar_vendedores(st.session_state.df_ventas.copy())
 

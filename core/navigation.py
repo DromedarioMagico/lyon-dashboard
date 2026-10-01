@@ -186,14 +186,14 @@ def inject_custom_css():
         vertical-align: middle;
         display: inline-block;
     }
-    [data-testid="stSidebarNavItems"] li:nth-child(1) a::before { content: "home"; }
+    [data-testid="stSidebarNavItems"] li:nth-child(1) a::before { content: "cloud_upload"; }
     [data-testid="stSidebarNavItems"] li:nth-child(2) a::before { content: "receipt_long"; }
     [data-testid="stSidebarNavItems"] li:nth-child(3) a::before { content: "bar_chart"; }
-    [data-testid="stSidebarNavItems"] li:nth-child(4) a::before { content: "compare_arrows"; }
-    [data-testid="stSidebarNavItems"] li:nth-child(5) a::before { content: "folder_open"; }
-    [data-testid="stSidebarNavItems"] li:nth-child(6) a::before { content: "payments"; }
-    [data-testid="stSidebarNavItems"] li:nth-child(7) a::before { content: "request_quote"; }
-    /* Rename "app" → "Home" by zeroing out its text and injecting via ::after */
+    [data-testid="stSidebarNavItems"] li:nth-child(4) a::before { content: "account_balance"; }
+    [data-testid="stSidebarNavItems"] li:nth-child(5) a::before { content: "insights"; }
+    [data-testid="stSidebarNavItems"] li:nth-child(6) a::before { content: "request_quote"; }
+    [data-testid="stSidebarNavItems"] li:nth-child(7) a::before { content: "folder_open"; }
+    /* Rename "app" → "Carga de Archivos" por zeroing out its text and injecting via ::after */
     [data-testid="stSidebarNavItems"] li:nth-child(1) a > span,
     [data-testid="stSidebarNavItems"] li:nth-child(1) a > div {
         font-size: 0 !important;
@@ -203,7 +203,7 @@ def inject_custom_css():
         overflow: hidden;
     }
     [data-testid="stSidebarNavItems"] li:nth-child(1) a::after {
-        content: "Home";
+        content: "Carga de Archivos";
         font-size: 0.875rem;
         color: inherit;
         letter-spacing: normal;
@@ -216,60 +216,31 @@ def inject_custom_css():
 
 
 def render_sidebar_status():
-    """Shows loaded files and DB stats. Call inside `with st.sidebar:`."""
+    """
+    Shows loaded files and DB stats. Call inside `with st.sidebar:`.
+
+    Recorre `core.fuentes.FUENTES` — el registro único de las 7 fuentes de la
+    app — en vez de un bloque if/else por fuente. Agregar una fuente nueva ya
+    no toca esta función, solo el registro.
+    """
+    from core.fuentes import estado_fuentes
+
     st.sidebar.markdown("---")
     st.sidebar.markdown("**Estado de la sesión**")
 
-    compras_loaded = "df_compras" in st.session_state
-    ventas_loaded  = "df_ventas"  in st.session_state
-
-    def _archivo(clave):
-        """Nombre del archivo cargado, recortado para que quepa en el sidebar."""
-        meta   = st.session_state.get(f"df_{clave}_meta", {})
-        nombre = meta.get("archivo", "cargado")
+    def _corto(nombre):
+        """Nombre de archivo recortado para que quepa en el sidebar."""
         return nombre if len(nombre) <= 28 else nombre[:25] + "…"
 
-    if compras_loaded:
-        st.sidebar.success(f"Compras: {_archivo('compras')}")
-    else:
-        st.sidebar.info("Compras: no cargado")
-
-    if ventas_loaded:
-        st.sidebar.success(f"Ventas: {_archivo('ventas')}")
-    else:
-        st.sidebar.info("Ventas: no cargado")
-
-    if "df_facturacion" in st.session_state:
-        _mf = st.session_state.get("df_facturacion_meta", {})
-        st.sidebar.success(f"Facturación: {_archivo('facturacion')}")
-        if _mf.get("periodo"):
-            st.sidebar.caption(f"Periodo {_mf['periodo']}")
-    else:
-        st.sidebar.info("Facturación: no cargado")
-
-    if "df_contabilidad" in st.session_state:
-        _mc = st.session_state.get("df_contabilidad_meta", {})
-        st.sidebar.success(f"Contabilidad: {_archivo('contabilidad')}")
-        if _mc.get("periodos"):
-            st.sidebar.caption(f"Periodos {_mc['periodos']}")
-    else:
-        st.sidebar.info("Contabilidad: no cargada")
-
-    if "df_balanza" in st.session_state:
-        _mb = st.session_state.get("df_balanza_meta", {})
-        st.sidebar.success(f"Balanza: {_archivo('balanza')}")
-        if _mb.get("periodos"):
-            st.sidebar.caption(f"Periodos {_mb['periodos']}")
-    else:
-        st.sidebar.info("Balanza: no cargada")
-
-    if "df_cfdi" in st.session_state:
-        _mx = st.session_state.get("df_cfdi_meta", {})
-        st.sidebar.success(f"CFDI: {_archivo('cfdi')}")
-        if _mx.get("periodos"):
-            st.sidebar.caption(f"Periodos {_mx['periodos']}")
-    else:
-        st.sidebar.info("CFDI (ventas/notas): no cargado")
+    estado = estado_fuentes(st.session_state)
+    for info in estado.values():
+        if info["cargada"]:
+            archivo = _corto(info["archivo"]) if info["archivo"] else "cargado"
+            st.sidebar.success(f"{info['label']}: {archivo}")
+            if info["cobertura"]:
+                st.sidebar.caption(info["cobertura"])
+        else:
+            st.sidebar.info(f"{info['label']}: no cargado")
 
     stats = get_stats()
     st.sidebar.markdown("---")
@@ -278,7 +249,7 @@ def render_sidebar_status():
     if stats["ultima_modificacion"]:
         st.sidebar.caption(f"Últ. modificación: {str(stats['ultima_modificacion'])[:16]}")
 
-    if compras_loaded and ventas_loaded:
+    if estado["compras"]["cargada"] and estado["ventas"]["cargada"]:
         st.sidebar.markdown("---")
 
         efectivos, comunes = _resolver_periodos_reporte()
@@ -309,8 +280,15 @@ def render_sidebar_status():
 
 def _resolver_periodos_reporte():
     """
-    Compares the per-page period filters (Compras, Ventas, Comparativa) against
-    the report's common-month window.
+    Compares the per-page period filters (Compras, Ventas) against the
+    report's common-month window.
+
+    Resultados Financieros used to own this window (`cmn`) back when it WAS
+    compras∩ventas — since Fase 6 its universe is CFDI∪gasto, an unrelated
+    window that has nothing to do with what Compras/Ventas can show in
+    sections 2/3/5/6 of the report. It now keeps its own period filter
+    (`resfin`) and no longer participates in this reconciliation — same
+    pattern as `pages/5_Facturacion.py`, which also owns its own window.
 
     Returns (efectivos, comunes):
       efectivos : set of frozenset(Period) — distinct effective selections
@@ -318,18 +296,13 @@ def _resolver_periodos_reporte():
                   ≥2 members the timelines conflict.
       comunes   : sorted list[Period] the report can show (avail_cmp ∩ avail_vta).
     """
-    av_cmn = st.session_state.get("periodo_avail_cmn")
-    if av_cmn:
-        # Comparativa already computed the exact common-month window
-        comunes = sorted(av_cmn)
-    else:
-        av_c = set(st.session_state.get("periodo_avail_cmp", []))
-        av_v = set(st.session_state.get("periodo_avail_vta", []))
-        comunes = sorted(av_c & av_v) if (av_c and av_v) else sorted(av_c or av_v)
+    av_c = set(st.session_state.get("periodo_avail_cmp", []))
+    av_v = set(st.session_state.get("periodo_avail_vta", []))
+    comunes = sorted(av_c & av_v) if (av_c and av_v) else sorted(av_c or av_v)
     comunes_set = set(comunes)
 
     efectivos = set()
-    for pref in ("cmp", "vta", "cmn"):
+    for pref in ("cmp", "vta"):
         sel = st.session_state.get(f"periodo_sel_{pref}")
         if sel is None:
             continue  # page never visited → no intent expressed
@@ -342,11 +315,11 @@ def _resolver_periodos_reporte():
 def _render_reconciliacion(comunes):
     """Sidebar prompt shown when page filters disagree — user picks ONE period."""
     st.sidebar.warning(
-        "⚠️ Tus filtros de período no coinciden entre Compras, Ventas y "
-        "Comparativa. Elige un período único para el reporte:"
+        "⚠️ Tus filtros de período no coinciden entre Compras y Ventas. "
+        "Elige un período único para el reporte:"
     )
 
-    etiquetas = {"cmp": "Compras", "vta": "Ventas", "cmn": "Comparativa"}
+    etiquetas = {"cmp": "Compras", "vta": "Ventas"}
     for pref, nombre in etiquetas.items():
         sel = st.session_state.get(f"periodo_sel_{pref}")
         if sel:
@@ -354,7 +327,7 @@ def _render_reconciliacion(comunes):
             st.sidebar.caption(f"• {nombre}: {label_mes(ss[0])} – {label_mes(ss[-1])}")
 
     # Default the picker to the overlap of the conflicting selections, if any
-    sels = [set(st.session_state.get(f"periodo_sel_{p}", [])) for p in ("cmp", "vta", "cmn")]
+    sels = [set(st.session_state.get(f"periodo_sel_{p}", [])) for p in ("cmp", "vta")]
     sels = [s for s in sels if s]
     overlap = set.intersection(*sels) if sels else set()
     default = sorted(overlap & set(comunes)) if overlap else list(comunes)
@@ -394,6 +367,7 @@ def _generar_reporte(meses_filtrar):
         st.session_state.get("df_ventas_meta",  {}),
         on_progress=_on_progress,
         meses_filtrar=meses_filtrar,
+        session=st.session_state,
     )
     _bar.empty()
     st.session_state["_report_html"]  = _html

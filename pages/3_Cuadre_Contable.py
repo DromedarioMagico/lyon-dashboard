@@ -1,28 +1,24 @@
-import datetime as dt
-
 import pandas as pd
 import streamlit as st
 
 from core.catalogos import COLOR_LYON, COLOR_GASTOS_EMPRESA, label_mes
 from core.conciliacion import (
     contabilidad_de_sesion, resumen_conciliacion, gasto_empresa_por_concepto,
-    gasto_empresa_por_periodo, cuadre_balanza_vs_libro, ESTADOS,
+    gasto_empresa_por_periodo, cuadre_balanza_vs_libro, ESTADOS, MES_SIN_LIBRO,
 )
-from core.database import init_db, log_evento
-from core.etl_balanza import cargar_balanza, totales_por_mayor
-from core.etl_cfdi import cargar_cfdi
-from core.etl_contabilidad import cargar_contabilidad
+from core.database import get_cuentas_contables, init_db
+from core.etl_balanza import totales_por_cuenta
+from core.fuentes import kpi_card as _kpi, fmt_money, resumen_balanza, SIN_DATO
 from core.navigation import (
     render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav,
 )
 from core.plots import (
     plot_conciliacion_sae, plot_gasto_fuera_sae, plot_barras_gastos_empresa,
-    plot_cuadre_balanza,
 )
 
 st.set_page_config(
-    page_title="Gastos de Empresa — Lyon AG",
-    page_icon="💼",
+    page_title="Cuadre Contable — Lyon AG",
+    page_icon="🏦",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -36,28 +32,13 @@ with st.sidebar:
 
 st.markdown(
     f"<h1 style='color:{COLOR_LYON}'>"
-    "<span class='material-symbols-outlined'>payments</span>Gastos de Empresa</h1>",
+    "<span class='material-symbols-outlined'>account_balance</span>Cuadre Contable</h1>",
     unsafe_allow_html=True,
 )
 
 _GRAY  = "#9E9E9E"
 _AMBER = "#E97132"
 _GREEN = "#548235"
-
-
-def _kpi(label, value, color, desc=None):
-    """Tarjeta KPI — misma gramática visual que Compras y Facturación."""
-    tip = (
-        f"<div style='font-size:.7rem;color:#6B7280;margin-top:.25rem'>{desc}</div>"
-        if desc else ""
-    )
-    return (
-        "<div style='border:1px solid #E5E7EB;border-radius:8px;padding:.7rem .9rem;"
-        "background:#fff;height:100%'>"
-        f"<div style='font-size:.75rem;color:#6B7280'>{label}</div>"
-        f"<div style='font-size:1.5rem;font-weight:700;color:{color}'>{value}</div>"
-        f"{tip}</div>"
-    )
 
 
 def _render_conciliacion(df_conc):
@@ -97,7 +78,7 @@ def _render_conciliacion(df_conc):
             st.markdown("<div style='padding-top:.6rem'></div>", unsafe_allow_html=True)
             if st.button("Ir al catálogo →", key="ctb_btn_catalogo",
                          use_container_width=True):
-                st.session_state["_goto"] = "pages/4_Clasificaciones.py"
+                st.session_state["_goto"] = "pages/6_Clasificaciones.py"
                 st.rerun()
 
     # ── KPIs ──────────────────────────────────────────────────────────────────
@@ -248,8 +229,8 @@ def _render_conciliacion(df_conc):
         )
         st.caption(
             f"**${total_ge/1e6:,.2f}M** en **{len(prev)}** concepto(s), repartidos en "
-            f"**{len(_por_periodo)}** mes(es). Ya se refleja en Compras, Comparativa "
-            f"y Facturación mientras el libro siga cargado en esta sesión."
+            f"**{len(_por_periodo)}** mes(es). Ya se refleja en Compras, Resultados "
+            f"Financieros y Facturación mientras el libro siga cargado en esta sesión."
         )
 
 
@@ -311,221 +292,167 @@ def _render_cuadre_balanza(df_balanza):
             _GREEN if not meses_solo_balanza else _AMBER,
         ), unsafe_allow_html=True)
 
-        with st.container(border=True):
-            st.plotly_chart(plot_cuadre_balanza(cuadre), use_container_width=True)
-
-        with st.expander("Ver el detalle mayor por mayor y mes"):
-            tabla = cuadre.copy()
-            tabla["Mes"] = [label_mes(m) for m in tabla["_Mes"]]
-            st.dataframe(
-                tabla[["Mes", "Mayor", "Nombre_Oficial", "Balanza", "Libro",
-                       "Diferencia", "Estado"]]
-                .sort_values("Diferencia", key=lambda s: s.abs(), ascending=False),
-                use_container_width=True, hide_index=True,
-                column_config={
-                    "Nombre_Oficial": st.column_config.TextColumn("Cuenta mayor"),
-                    "Balanza": st.column_config.NumberColumn(format="$%,.2f"),
-                    "Libro": st.column_config.NumberColumn(format="$%,.2f"),
-                    "Diferencia": st.column_config.NumberColumn(format="$%,.2f"),
-                },
-                height=min(480, 45 + 36 * min(len(tabla), 12)),
-            )
-
-        # ── Gasto que la balanza trae y el libro nunca manda ──────────────────
-        # Se detecta por patrón (Libro = 0 en TODOS los periodos comparados), no
-        # por código de cuenta a la fuerza — así se generaliza si en el futuro
-        # aparece otra cuenta que el libro nunca cubra, sin tocar código.
-        por_mayor = (
-            cuadre.groupby(["Mayor", "Nombre_Oficial"], as_index=False)
-            [["Balanza", "Libro"]].sum()
-        )
-        nunca_en_libro = por_mayor[por_mayor["Libro"] == 0.0]
-        if len(nunca_en_libro) and nunca_en_libro["Balanza"].sum() > 0:
-            st.markdown("#### Gasto que no está en el margen")
-            st.caption(
-                "Estas cuentas mayor aparecen en la balanza pero el libro de "
-                "movimientos nunca las manda — por su naturaleza, no generan "
-                "proveedor ni orden de compra (depreciación, amortización…). "
-                "**No cuentan** en el Costo Operativo de Compras ni en el Margen "
-                "Operativo: es una decisión explícita, no un olvido. Se muestran "
-                "aquí para que el monto no quede invisible."
-            )
-            st.dataframe(
-                nunca_en_libro[["Mayor", "Nombre_Oficial", "Balanza"]]
-                .rename(columns={"Balanza": "Monto (fuera del margen)"})
-                .sort_values("Monto (fuera del margen)", ascending=False),
-                use_container_width=True, hide_index=True,
-                column_config={
-                    "Monto (fuera del margen)": st.column_config.NumberColumn(format="$%,.2f"),
-                },
-            )
-
-    # ── Meses que solo tiene la balanza (p. ej. antes de que empezara el libro) ──
-    meses_bal_todos = sorted(set(df_balanza["_Mes"].unique()) - meses_libro, key=str)
-    if meses_bal_todos:
-        st.markdown(f"#### {label_mes(meses_bal_todos[0])} – {label_mes(meses_bal_todos[-1])} (solo balanza)")
+        # ── Tabla cuenta mayor x mes, tres renglones por cuenta ───────────────
+        # Reemplaza al histograma: sumar todos los meses en una barra escondía
+        # justo el patrón (una cuenta que descuadra todos los meses vs. una que
+        # solo descuadra uno). Ordenada por el tamaño del hueco REAL — los pares
+        # "Mes sin libro" no cuentan para ese orden, porque ausencia de archivo
+        # no es un hueco que reclamarle a Contabilidad.
+        st.markdown("#### Balanza vs. libro, cuenta mayor por mes")
         st.caption(
-            "Estos meses no están en el libro de movimientos, así que no traen "
-            "detalle de proveedor y **no entran a la conciliación contra el SAE**. "
-            "Es el total que reporta la balanza, para que estos meses no queden "
-            "completamente invisibles."
+            "Cada cuenta mayor en tres renglones: lo que dice la balanza, lo que "
+            "trae el libro, y su diferencia con signo (+ si la balanza es mayor, "
+            "− si el libro es mayor). «—» significa que el libro no cubre ese "
+            "mes — no es un descuadre, es que no hay con qué comparar todavía."
         )
-        tot_solo = totales_por_mayor(df_balanza, periodos=meses_bal_todos)
-        resumen = (
-            tot_solo.groupby(["Mayor", "Nombre_Oficial"], as_index=False)["Debe"].sum()
-            .sort_values("Debe", ascending=False)
-            .rename(columns={"Debe": "Gasto"})
+        meses_orden = sorted(cuadre["_Mes"].unique())
+        _comparables = cuadre[cuadre["Estado"] != MES_SIN_LIBRO]
+        _peso_hueco = (
+            _comparables.groupby(["Mayor", "Nombre_Oficial"])["Diferencia"]
+            .apply(lambda s: float(s.abs().sum()))
         )
-        st.dataframe(
-            resumen,
-            use_container_width=True, hide_index=True,
-            column_config={"Gasto": st.column_config.NumberColumn(format="$%,.2f")},
-        )
-        st.caption(f"Total: **${resumen['Gasto'].sum()/1e6:,.2f}M**")
+        _mayores = cuadre[["Mayor", "Nombre_Oficial"]].drop_duplicates()
+        _mayores["_peso"] = [
+            _peso_hueco.get((r.Mayor, r.Nombre_Oficial), 0.0)
+            for r in _mayores.itertuples()
+        ]
+        _mayores = _mayores.sort_values("_peso", ascending=False)
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  Carga de los archivos de Contabilidad
-# ══════════════════════════════════════════════════════════════════════════════
-st.caption(
-    "Sube aquí todo lo que te manda Contabilidad — el libro de movimientos, la "
-    "balanza de comprobación y/o los reportes de ventas y notas de crédito — "
-    "junto, en un solo arrastre. La app detecta cuál es cuál por su estructura, "
-    "no por el nombre del archivo. Igual que el SAE, **nada de esto se guarda**: "
-    "vive solo en esta sesión y hay que volver a subirlo la próxima vez. Lo único "
-    "que se guarda son tus decisiones del catálogo de cuentas."
-)
-
-# El orden importa poco (las tres estructuras son mutuamente excluyentes en los
-# archivos reales), pero se prueba primero el libro por ser el más frecuente.
-_CARGADORES = [
-    ("libro", cargar_contabilidad),
-    ("balanza", cargar_balanza),
-    ("cfdi", cargar_cfdi),
-]
-
-
-def _detectar_y_cargar(contenido):
-    """
-    Prueba cada cargador en orden y se queda con el primero que no truene. Cada
-    `cargar_*` ya sabe reconocer su propia estructura (columnas/encabezado) y
-    levanta ValueError si el archivo no le corresponde — reusar esa detección
-    evita mantener un sniffer aparte que se pueda desalinear de los ETL reales.
-    Returns (tipo, df, warnings) o (None, None, None) si nadie lo reconoció.
-    """
-    for tipo, cargador in _CARGADORES:
-        try:
-            df, warns = cargador(contenido)
-            return tipo, df, warns
-        except ValueError:
-            continue
-    return None, None, None
-
-
-_hay_algo_cargado = any(
-    k in st.session_state for k in ("df_contabilidad", "df_balanza", "df_cfdi")
-)
-
-with st.expander(
-    "📥 Cargar archivos de Contabilidad", expanded=not _hay_algo_cargado,
-):
-    archivos = st.file_uploader(
-        "Archivos de Contabilidad",
-        type=["xlsx", "xlsm"],
-        accept_multiple_files=True,
-        key="ctb_uploader",
-        label_visibility="collapsed",
-    )
-    st.caption(
-        "Libro de movimientos: columnas `MES`, `CUENTA CONTABLE`, `PROVEEDOR`, "
-        "`MONTO`. Balanza: encabezado `No. de cuenta` con bloques Saldo/Debe/"
-        "Haber por mes. Ventas o Notas de Crédito: columnas `Serie y Folio`, "
-        "`UUID`, `Subtotal`, `Tipo`."
-    )
-    if archivos and st.button(
-        "Cargar archivos", type="primary", key="ctb_btn_cargar"
-    ):
-        with st.spinner(f"Procesando {len(archivos)} archivo(s)…"):
-            cargados = []
-            no_reconocidos = []
-            cfdi_partes, cfdi_warns, cfdi_nombres = [], [], []
-
-            for archivo in archivos:
+        _idx = cuadre.set_index(["Mayor", "_Mes"])
+        filas_tabla = []
+        for r in _mayores.itertuples():
+            etiqueta = f"{r.Mayor} · {r.Nombre_Oficial}"
+            fila_bal = {"Cuenta": etiqueta, "Fuente": "Balanza"}
+            fila_lib = {"Cuenta": etiqueta, "Fuente": "Libro"}
+            fila_dif = {"Cuenta": etiqueta, "Fuente": "Diferencia"}
+            for m in meses_orden:
+                col = label_mes(m)
                 try:
-                    tipo, df_x, warns = _detectar_y_cargar(archivo.getvalue())
-                except Exception as e:
-                    st.error(f"Error al procesar «{archivo.name}»:\n\n{e}")
-                    continue
+                    fila_cuadre = _idx.loc[(r.Mayor, m)]
+                except KeyError:
+                    fila_cuadre = None
+                if fila_cuadre is None or fila_cuadre["Estado"] == MES_SIN_LIBRO:
+                    fila_bal[col] = SIN_DATO
+                    fila_lib[col] = SIN_DATO
+                    fila_dif[col] = SIN_DATO
+                else:
+                    fila_bal[col] = f"${fila_cuadre['Balanza']:,.0f}"
+                    fila_lib[col] = f"${fila_cuadre['Libro']:,.0f}"
+                    d = float(fila_cuadre["Diferencia"])
+                    signo = "+" if d > 0 else ("−" if d < 0 else "")
+                    fila_dif[col] = f"{signo}${abs(d):,.0f}"
+            filas_tabla.extend([fila_bal, fila_lib, fila_dif])
 
-                if tipo is None:
-                    no_reconocidos.append(archivo.name)
-                    continue
+        with st.container(border=True):
+            st.dataframe(
+                pd.DataFrame(filas_tabla),
+                use_container_width=True, hide_index=True,
+                height=min(600, 45 + 36 * len(filas_tabla)),
+            )
 
-                _ahora = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+    # ── Las tres cifras de clasificación, también para la balanza ─────────────
+    # Espejo de las que ya tiene el libro en _render_conciliacion: un total
+    # parcial sin su pendiente al lado es un número engañoso. Esta sección no
+    # depende de tener el libro cargado — solo de la balanza.
+    st.markdown("#### Clasificación de las cuentas (balanza)")
+    _res_bal = resumen_balanza(df_balanza)
+    cb1, cb2, cb3 = st.columns(3)
+    cb1.markdown(_kpi(
+        "Gasto operativo", fmt_money(_res_bal["gasto_operativo"]), COLOR_LYON,
+        "Cuentas auxiliares de la balanza que marcaste como gasto del periodo",
+    ), unsafe_allow_html=True)
+    cb2.markdown(_kpi(
+        "No operativo", fmt_money(_res_bal["no_operativo"]), _GRAY,
+        "Anticipos, depreciación/amortización y otros movimientos de balance",
+    ), unsafe_allow_html=True)
+    cb3.markdown(_kpi(
+        "Sin clasificar", fmt_money(_res_bal["sin_clasificar"]), _AMBER,
+        "Todavía no cuentan para nada. Clasifícalas en Clasificaciones",
+    ), unsafe_allow_html=True)
 
-                if tipo == "libro":
-                    st.session_state["df_contabilidad"] = df_x
-                    st.session_state["df_contabilidad_meta"] = {
-                        "archivo": archivo.name, "uploaded_at": _ahora,
-                        "periodos": f"{df_x['_Mes'].min()} → {df_x['_Mes'].max()}",
-                    }
-                    log_evento(
-                        "contabilidad_carga",
-                        f"{archivo.name}: {len(df_x)} movimientos, "
-                        f"${df_x['Monto_MXN'].sum():,.0f}",
-                    )
-                    cargados.append(f"{archivo.name} → libro de movimientos")
-                elif tipo == "balanza":
-                    st.session_state["df_balanza"] = df_x
-                    st.session_state["df_balanza_meta"] = {
-                        "archivo": archivo.name, "uploaded_at": _ahora,
-                        "periodos": f"{df_x['_Mes'].min()} → {df_x['_Mes'].max()}",
-                    }
-                    log_evento(
-                        "balanza_carga",
-                        f"{archivo.name}: {df_x['Cuenta'].nunique()} cuentas",
-                    )
-                    cargados.append(f"{archivo.name} → balanza de comprobación")
-                elif tipo == "cfdi":
-                    cfdi_partes.append(df_x)
-                    cfdi_nombres.append(archivo.name)
-                    cfdi_warns.extend(f"[{archivo.name}] {w}" for w in warns)
-                    continue  # el aviso de warnings va agrupado abajo
+    # ── Lo que solo tiene una fuente, lado a lado ─────────────────────────────
+    st.markdown("#### Lo que solo reporta una fuente")
+    st.caption(
+        "Cuentas que una fuente nunca menciona, o meses que el libro no cubre "
+        "en absoluto. Ninguna de las dos es un error — son huecos estructurales "
+        "entre lo que cada archivo sabe reportar."
+    )
+    _cuentas_oficiales = (
+        df_balanza.drop_duplicates("Cuenta", keep="last")
+        .set_index("Cuenta")["Nombre_Oficial"].to_dict()
+    )
+    _catalogo = get_cuentas_contables()
+    _bal_cta = totales_por_cuenta(df_balanza).groupby("Cuenta")["Debe"].sum()
 
-                for w in warns:
-                    st.warning(f"[{archivo.name}] {w}")
-
-            if cfdi_partes:
-                # Ventas y Notas de Crédito comparten estructura: si llegan los
-                # dos en la misma carga, se concatenan en un solo df_cfdi — el
-                # `Tipo_Doc` de cada fila ya los distingue.
-                df_cfdi_all = pd.concat(cfdi_partes, ignore_index=True)
-                st.session_state["df_cfdi"] = df_cfdi_all
-                st.session_state["df_cfdi_meta"] = {
-                    "archivo": " + ".join(cfdi_nombres),
-                    "uploaded_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "periodos": (
-                        f"{df_cfdi_all['_Mes'].min()} → {df_cfdi_all['_Mes'].max()}"
-                    ),
+    col_izq, col_der = st.columns(2)
+    with col_izq:
+        st.markdown("**Solo en la balanza**")
+        if df_libro is None:
+            st.caption("Sube también el libro para ver esta comparación.")
+        else:
+            lib_cta = df_libro.groupby("Cuenta")["Monto_MXN"].sum()
+            _solo_bal_estructural = sorted(set(_bal_cta.index) - set(lib_cta.index))
+            filas_izq = [
+                {
+                    "Cuenta": c, "Nombre": _cuentas_oficiales.get(c, c),
+                    "Motivo": "Cuenta fuera del libro (todo el periodo)",
+                    "Monto": float(_bal_cta[c]),
                 }
-                log_evento(
-                    "cfdi_carga",
-                    f"{' + '.join(cfdi_nombres)}: {len(df_cfdi_all)} documentos",
+                for c in _solo_bal_estructural
+            ]
+            _meses_solo_bal = sorted(set(df_balanza["_Mes"].unique()) - meses_libro, key=str)
+            if _meses_solo_bal:
+                _tmp = totales_por_cuenta(df_balanza, periodos=_meses_solo_bal)
+                _tmp = _tmp[~_tmp["Cuenta"].isin(_solo_bal_estructural)]
+                _rango = f"{label_mes(_meses_solo_bal[0])}–{label_mes(_meses_solo_bal[-1])}"
+                _tmp_g = _tmp.groupby(["Cuenta", "Nombre_Oficial"], as_index=False)["Debe"].sum()
+                for r in _tmp_g.itertuples():
+                    filas_izq.append({
+                        "Cuenta": r.Cuenta, "Nombre": r.Nombre_Oficial,
+                        "Motivo": f"Mes fuera del libro ({_rango})",
+                        "Monto": float(r.Debe),
+                    })
+            if not filas_izq:
+                st.success("Nada — todo lo que reporta la balanza también está en el libro.")
+            else:
+                df_izq = pd.DataFrame(filas_izq).sort_values("Monto", ascending=False)
+                st.dataframe(
+                    df_izq, use_container_width=True, hide_index=True,
+                    column_config={"Monto": st.column_config.NumberColumn(format="$%,.2f")},
+                    height=min(360, 45 + 36 * min(len(df_izq), 8)),
                 )
-                cargados.append(f"{', '.join(cfdi_nombres)} → reporte(s) CFDI")
-                for w in cfdi_warns:
-                    st.warning(w)
+                st.caption(f"Total: **{fmt_money(df_izq['Monto'].sum())}**")
 
-            for nombre in no_reconocidos:
-                st.error(
-                    f"No reconocí «{nombre}» — no coincide con la estructura del "
-                    f"libro, la balanza ni un reporte CFDI de Contabilidad."
+    with col_der:
+        st.markdown("**Solo en el libro**")
+        if df_libro is None:
+            st.caption("Sube también el libro para ver esta comparación.")
+        else:
+            lib_cta = df_libro.groupby("Cuenta")["Monto_MXN"].sum()
+            _solo_lib = sorted(set(lib_cta.index) - set(_bal_cta.index))
+            if not _solo_lib:
+                st.success("Nada — todo lo que trae el libro también está en la balanza.")
+            else:
+                filas_der = [
+                    {
+                        "Cuenta": c,
+                        "Nombre": (_catalogo.get(c) or {}).get("nombre") or c,
+                        "Monto": float(lib_cta[c]),
+                    }
+                    for c in _solo_lib
+                ]
+                df_der = pd.DataFrame(filas_der).sort_values("Monto", ascending=False)
+                st.dataframe(
+                    df_der, use_container_width=True, hide_index=True,
+                    column_config={"Monto": st.column_config.NumberColumn(format="$%,.2f")},
+                    height=min(360, 45 + 36 * min(len(df_der), 8)),
                 )
+                st.caption(f"Total: **{fmt_money(df_der['Monto'].sum())}**")
 
-            if cargados:
-                st.success("✅ " + " · ".join(cargados))
-                st.rerun()
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  Contenido — la carga vive en Carga de Archivos
+# ══════════════════════════════════════════════════════════════════════════════
 df_conc     = contabilidad_de_sesion()
 df_balanza  = st.session_state.get("df_balanza")
 df_cfdi     = st.session_state.get("df_cfdi")
@@ -533,8 +460,10 @@ df_cfdi     = st.session_state.get("df_cfdi")
 if df_conc is None and df_balanza is None and df_cfdi is None:
     st.info(
         "Todavía no hay ningún archivo de Contabilidad cargado en esta sesión. "
-        "Súbelos arriba para ver la conciliación contra el SAE."
+        "Súbelos en **Carga de Archivos** para ver la conciliación contra el SAE."
     )
+    if st.button("Ir a Carga de Archivos", type="primary"):
+        st.switch_page("app.py")
 else:
     if df_conc is not None:
         _render_conciliacion(df_conc)
@@ -550,13 +479,3 @@ else:
             f"periodo {_meta_cfdi.get('periodos', '—')}. El detalle del año "
             f"facturado, cancelaciones y forma de cobro está en **Facturación**."
         )
-
-    st.divider()
-    if st.button("🗑 Quitar los archivos de Contabilidad de esta sesión"):
-        for k in (
-            "df_contabilidad", "df_contabilidad_meta",
-            "df_balanza", "df_balanza_meta",
-            "df_cfdi", "df_cfdi_meta",
-        ):
-            st.session_state.pop(k, None)
-        st.rerun()

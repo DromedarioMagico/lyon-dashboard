@@ -219,3 +219,41 @@ def bucket_antiguedad(dias):
     if dias <= 90:
         return "61-90 días"
     return "90+ días"
+
+
+def ventas_confirmadas(df_ventas, df_cfdi):
+    """
+    El Reporte de Ventas (CFDI) llevado a la forma de un DataFrame de ventas —
+    mismas columnas que ya usa `core/plots.py` para pedidos (Fecha, _Mes,
+    Cliente_Nombre, Cliente_Display, Vendedor, Importe_MXN, Subtotal_MXN) — así
+    las gráficas ya validadas lo reciben sin que haya que tocar una sola.
+
+    El CFDI no trae vendedor: se cruza por `Cliente_Nombre` (la llave que
+    demostró 100% de cobertura de monto contra los pedidos — el cruce por
+    `Cliente_Codigo` pierde una fracción) contra el mapa cliente→vendedor
+    construido de LOS PEDIDOS YA RESUELTOS. `df_ventas` debe venir de
+    `etl_ventas.aplicar_vendedores()`: es "la cartera que tenemos", porque ya
+    combina el vendedor nativo del SAE con las asignaciones que el usuario
+    guardó en Clasificaciones. Un cliente con más de un vendedor en los
+    pedidos se resuelve al de mayor monto (un solo caso real, de 53 clientes).
+    Un cliente del CFDI sin mapa queda `"Sin asignar"` — nunca inventado.
+
+    `df_cfdi`: ya filtrado a lo que se quiera medir (p. ej. facturas vigentes:
+    `Tipo_Doc == "Factura"` y `~Cancelado`) — esta función no filtra Tipo_Doc
+    ni Cancelado, eso es decisión de quien la llama.
+
+    Returns una copia de `df_cfdi` con la columna `Vendedor` agregada.
+    """
+    mapa = (
+        df_ventas[df_ventas["Vendedor"] != "Sin asignar"]
+        .groupby(["Cliente_Nombre", "Vendedor"])["Importe_MXN"].sum()
+        .reset_index()
+        .sort_values("Importe_MXN", ascending=False)
+        .drop_duplicates("Cliente_Nombre")
+        .set_index("Cliente_Nombre")["Vendedor"]
+        .to_dict()
+    )
+
+    df = df_cfdi.copy()
+    df["Vendedor"] = df["Cliente_Nombre"].map(mapa).fillna("Sin asignar")
+    return df

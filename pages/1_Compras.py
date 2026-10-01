@@ -1,5 +1,3 @@
-import datetime as dt
-
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -12,14 +10,17 @@ from core.catalogos import (
 )
 from core.conciliacion import (
     contabilidad_de_sesion, resumen_conciliacion, gasto_empresa_por_concepto,
-    gasto_empresa_por_periodo,
 )
 from core.database import init_db
-from core.etl_compras import cargar_compras, aplicar_clasificaciones
+from core.etl_compras import aplicar_clasificaciones
+from core.fuentes import (
+    kpi_card as _kpi, fmt_money, gasto_fuera_de_compras, gasto_operativo_contable,
+)
 from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav, breadcrumb, render_periodo_filter, parse_semana_x
 from core.plots import (
     plot_barras_categorias,
     plot_barras_temporales,
+    plot_cobertura_sae_pie,
     plot_curva_semanal_compras,
     plot_dona_gastos_empresa,
     plot_gasto_fuera_sae,
@@ -47,17 +48,6 @@ _CRITICAS = {"Sustratos (Papel)", "Mantenimiento y Refacciones", "Pre-prensa y Q
 # Paleta para slices de proveedores dentro de un donut
 _PROV_PALETTE   = ["#1F4E79", "#2E75B6", "#4472C4", "#5B9BD5", "#9DC3E6", "#BDD7EE"]
 _COMMODITY_CATS = {"Sustratos (Papel)", "Pre-prensa y Químicos", "Insumos de Producción"}
-
-
-def _kpi(label, value, color):
-    return f"""
-    <div style="background:#fff;border:1px solid #E1E7EC;border-radius:10px;
-                padding:1rem 1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.05);">
-      <p style="margin:0 0 4px;font-size:.72rem;font-weight:600;color:#6B7280;
-                text-transform:uppercase;letter-spacing:.5px;">{label}</p>
-      <p style="margin:0;font-size:1.65rem;font-weight:700;color:{color};
-                line-height:1.2;">{value}</p>
-    </div>"""
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1235,30 +1225,14 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ── Upload ────────────────────────────────────────────────────────────────────
+# ── Gate: sin Compras no hay nada que mostrar aquí ────────────────────────────
 if "df_compras" not in st.session_state:
-    st.markdown("Sube el archivo SAE de compras para ver el dashboard.")
-    uploaded = st.file_uploader(
-        "Archivo SAE de Compras",
-        type=["xlsx", "xlsm", "xls"],
-        label_visibility="collapsed",
+    st.info(
+        "Todavía no has cargado el archivo SAE de Compras en esta sesión. "
+        "Súbelo en **Carga de Archivos**."
     )
-    if uploaded:
-        with st.spinner("Procesando archivo…"):
-            try:
-                df_raw, warns = cargar_compras(uploaded)
-                st.session_state.df_compras = df_raw
-                st.session_state.df_compras_meta = {
-                    "archivo":     uploaded.name,
-                    "uploaded_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "total_rows":  len(df_raw),
-                }
-                for w in warns:
-                    st.warning(w)
-                st.success(f"✅ {len(df_raw):,} facturas cargadas.")
-                st.rerun()
-            except ValueError as e:
-                st.error(f"Error al procesar el archivo:\n\n{e}")
+    if st.button("Ir a Carga de Archivos", type="primary"):
+        st.switch_page("app.py")
     st.stop()
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -1298,11 +1272,6 @@ with st.sidebar:
         if st.checkbox(cat, value=True, key=f"cmp_cat_{cat}"):
             cats_sel.append(cat)
 
-    st.markdown("---")
-    if st.button("🗑 Borrar datos y volver a subir", use_container_width=True):
-        for key in ("df_compras", "df_compras_meta"):
-            st.session_state.pop(key, None)
-        st.rerun()
 
 # ── Modo drill-down (antes del guard de meses vacíos para no bloquear vistas activas) ──
 _drill_ctx = df_full[df_full["_Mes"].isin(meses_sel)].copy() if meses_sel else df_full
@@ -1333,59 +1302,87 @@ if len(df) == 0:
 gasto_total     = df["Gasto_Total_MXN"].sum()
 total_facturas  = len(df)
 ticket_promedio = df["Gasto_Total_MXN"].mean()
-ticket_mediano  = df["Gasto_Total_MXN"].median()
-prov_unicos     = df["Proveedor"].nunique()
 
 mask_clasificado  = df["Categoria"] != ETIQ_PENDIENTE
 gasto_clasificado = df.loc[mask_clasificado, "Gasto_Total_MXN"].sum()
 pct_cobertura     = gasto_clasificado / gasto_total * 100 if gasto_total else 0
 prov_pendientes   = df.loc[~mask_clasificado, "Proveedor"].nunique()
 
-k1, k2, k3, k4, k5, k6 = st.columns(6)
-k1.markdown(_kpi("Gasto Total",      f"${gasto_total/1e6:,.2f}M", _GREEN), unsafe_allow_html=True)
-k2.markdown(_kpi("Facturas",         f"{total_facturas:,}",        _BLUE),  unsafe_allow_html=True)
-k3.markdown(_kpi("Ticket Promedio",  f"${ticket_promedio:,.0f}",   _GREEN), unsafe_allow_html=True)
-k4.markdown(_kpi("Ticket Mediano",   f"${ticket_mediano:,.0f}",    _GREEN), unsafe_allow_html=True)
-k5.markdown(_kpi("Proveedores",      f"{prov_unicos:,}",           _BLUE),  unsafe_allow_html=True)
-k6.markdown(_kpi("Cobertura Categ.", f"{pct_cobertura:.1f}%",      _BLUE),  unsafe_allow_html=True)
+k1, k2, k3 = st.columns(3)
+k1.markdown(_kpi("Gasto Total",     f"${gasto_total/1e6:,.2f}M", _GREEN), unsafe_allow_html=True)
+k2.markdown(_kpi("Facturas",        f"{total_facturas:,}",       _BLUE),  unsafe_allow_html=True)
+k3.markdown(_kpi("Ticket Promedio", f"${ticket_promedio:,.0f}",  _GREEN), unsafe_allow_html=True)
 
-# ── Gastos de Empresa (nómina, etc. — no pasan por el SAE) ────────────────────
-# El libro contable vive en la sesión (no se persiste); el gasto se calcula al
-# vuelo a partir de él y del catálogo de cuentas.
-_periodos_str = [f"{p.year}-{p.month:02d}" for p in meses_sel]
-_conc         = contabilidad_de_sesion()
-_res_ctb      = resumen_conciliacion(_conc) if _conc is not None else None
+# ── El costo, por dos caminos ──────────────────────────────────────────────────
+# Las dos medidas de "gasto" que trae la app (core/fuentes.py) llegan al mismo
+# lugar por caminos distintos: sumar Gasto fuera de compras al SAE, o restárselo
+# al libro, es la MISMA comparación vista desde cada fuente — y el hueco entre
+# las dos es el hallazgo. Solo el libro puede producir ambas medidas (la
+# balanza no distingue qué parte de su total ya pasó por Compras), así que si
+# el libro no cubre TODOS los meses filtrados, la Ruta 2 y el hueco salen "—"
+# en vez de un total parcial disfrazado de cero.
+_conc    = contabilidad_de_sesion()
+_res_ctb = resumen_conciliacion(_conc) if _conc is not None else None
 
-_ge_por_periodo   = gasto_empresa_por_periodo(_conc, meses_sel) if _conc is not None else {}
-gasto_empresa     = sum(_ge_por_periodo.values())
-gasto_con_empresa = gasto_total + gasto_empresa
-_ge_por_concepto  = (
-    gasto_empresa_por_concepto(_conc, meses_sel) if gasto_empresa > 0 else {}
+gasto_fuera_compras, _fuente_gfc = gasto_fuera_de_compras(st.session_state, meses_sel)
+gasto_con_empresa = (
+    gasto_total + gasto_fuera_compras if gasto_fuera_compras is not None else None
+)
+gasto_operativo_ctb, _fuente_goc = gasto_operativo_contable(st.session_state, meses_sel)
+_ruta2_resultado = (
+    gasto_operativo_ctb - gasto_fuera_compras
+    if gasto_operativo_ctb is not None and gasto_fuera_compras is not None else None
+)
+_hueco = gasto_total - _ruta2_resultado if _ruta2_resultado is not None else None
+_ge_por_concepto = (
+    gasto_empresa_por_concepto(_conc, meses_sel)
+    if gasto_fuera_compras is not None and gasto_fuera_compras > 0 else {}
 )
 
-if gasto_empresa > 0 or _res_ctb:
-    st.markdown("#### 💼 Costo Operativo Total")
+if gasto_fuera_compras is not None or _res_ctb:
+    st.markdown("#### 💼 El costo, por dos caminos")
     st.caption(
-        "Compras reales (SAE) más los Gastos de Empresa del período — nómina, "
-        "impuestos y demás costos que nunca generan una orden de compra. Se "
-        "alimentan de la base de Contabilidad y de la captura manual."
+        "La misma comparación llegando por dos rutas distintas — nómina, "
+        "impuestos y demás costos que nunca generan una orden de compra, vistos "
+        "primero desde el SAE y luego desde el libro contable. La diferencia "
+        "entre las dos es la cifra que hay que revisar. Se alimentan del libro "
+        "contable en Cuadre Contable."
     )
-    kc1, kc2, kc3, kc4 = st.columns(4)
-    kc1.markdown(_kpi("Compras (SAE)", f"${gasto_total/1e6:,.2f}M", _BLUE), unsafe_allow_html=True)
-    kc2.markdown(_kpi("Gastos de Empresa", f"${gasto_empresa/1e6:,.2f}M", COLOR_GASTOS_EMPRESA),
-                 unsafe_allow_html=True)
-    kc3.markdown(_kpi("Costo Operativo Total", f"${gasto_con_empresa/1e6:,.2f}M", _BLUE),
+
+    st.markdown("###### Ruta 1 — según el SAE")
+    r1a, r1b, r1c = st.columns(3)
+    r1a.markdown(_kpi("Compras (SAE)", fmt_money(gasto_total), _BLUE), unsafe_allow_html=True)
+    r1b.markdown(_kpi(
+        "+ Gasto fuera de compras", fmt_money(gasto_fuera_compras), COLOR_GASTOS_EMPRESA,
+        fuente=f"Fuente: {_fuente_gfc}" if _fuente_gfc else None,
+    ), unsafe_allow_html=True)
+    r1c.markdown(_kpi("= Costo Operativo Total", fmt_money(gasto_con_empresa), _BLUE),
                  unsafe_allow_html=True)
 
-    # Cobertura del SAE: qué proporción del gasto que reportó Contabilidad pasó
-    # por el proceso de compras. Es el número de control interno.
-    if _res_ctb and _res_ctb["total"] > 0:
-        _cob = _res_ctb["en_sae"] / _res_ctb["total"] * 100
-        kc4.markdown(_kpi("Cobertura del SAE", f"{_cob:.1f}%", _BLUE),
-                     unsafe_allow_html=True)
-    else:
-        kc4.markdown(_kpi("Cobertura del SAE", "— sin contabilidad —", _GRAY),
-                     unsafe_allow_html=True)
+    st.markdown("###### Ruta 2 — según el libro contable")
+    r2a, r2b, r2c = st.columns(3)
+    r2a.markdown(_kpi(
+        "Gasto operativo contable", fmt_money(gasto_operativo_ctb), _BLUE,
+        fuente=f"Fuente: {_fuente_goc}" if _fuente_goc else None,
+    ), unsafe_allow_html=True)
+    r2b.markdown(_kpi("− Gasto fuera de compras", fmt_money(gasto_fuera_compras),
+                       COLOR_GASTOS_EMPRESA), unsafe_allow_html=True)
+    r2c.markdown(_kpi("= Debió pasar por Compras", fmt_money(_ruta2_resultado), _BLUE),
+                 unsafe_allow_html=True)
+
+    st.markdown("###### El hueco entre las dos rutas")
+    _color_hueco = (
+        _GRAY if _hueco is None
+        else _GREEN if abs(_hueco) <= 1.0
+        else "#C00000"
+    )
+    st.markdown(_kpi(
+        "Compras (SAE) vs. lo que el libro dice que pasó por Compras",
+        fmt_money(_hueco), _color_hueco,
+        "Si no es cero, hay proveedores que el libro contable dice que "
+        "pasaron por Compras pero el SAE no registra igual (o viceversa) — "
+        "es la cifra concreta que hay que revisar.",
+    ), unsafe_allow_html=True)
 
     if _res_ctb:
         _pend = _res_ctb["n_cuentas_sin_clasificar"]
@@ -1394,6 +1391,45 @@ if gasto_empresa > 0 or _res_ctb:
                 f"⚠️ {_pend} cuenta(s) contable(s) sin clasificar "
                 f"(${_res_ctb['sin_clasificar']/1e6:,.2f}M) todavía no cuentan aquí."
             )
+
+    # ── ¿El gasto del libro pasó por Compras? — pie binario ───────────────────
+    # Deliberadamente dos rebanadas (Sí/No); lo no concluyente (Por revisar,
+    # Mes sin SAE, Sin comparar) no tiene rebanada propia — mezclarlo ahí ya se
+    # probó confuso — pero tampoco desaparece: se reporta aparte, con su monto.
+    # La barra apilada de 5 tramos para auditoría vive en Cuadre Contable.
+    if _res_ctb:
+        with st.container(border=True):
+            st.plotly_chart(plot_cobertura_sae_pie(_res_ctb), use_container_width=True)
+            _no_concluyente = (
+                _res_ctb["por_revisar"] + _res_ctb["mes_sin_sae"] + _res_ctb["sin_comparar"]
+            )
+            if _no_concluyente > 0:
+                st.caption(
+                    f"ℹ️ {fmt_money(_no_concluyente)} más no se pudo concluir (mismo "
+                    f"proveedor en otro mes, o meses que el archivo de Compras no "
+                    f"cubre) — no entra en ninguna de las dos rebanadas."
+                )
+
+    if gasto_fuera_compras is not None and gasto_fuera_compras > 0:
+        with st.container(border=True):
+            st.plotly_chart(
+                plot_dona_gastos_empresa(_ge_por_concepto, gasto_fuera_compras),
+                use_container_width=True,
+            )
+
+    if _conc is not None:
+        with st.container(border=True):
+            st.caption(
+                "A quién se le paga sin que pase por una orden de compra, según el "
+                "libro de Contabilidad del período. La nómina nunca va a pasar por "
+                "el SAE; un proveedor de insumos en esta lista sí es una señal."
+            )
+            st.plotly_chart(plot_gasto_fuera_sae(_conc), use_container_width=True)
+
+    st.info(
+        "📌 De aquí en adelante, todo lo que ves sale **directo del SAE de "
+        "Compras** — nada más del libro contable."
+    )
 
 st.divider()
 
@@ -1417,22 +1453,6 @@ with st.container(border=True):
                     if st.button(cat, key=f"pill_cat_{cat}", use_container_width=True):
                         st.session_state["drill_categoria"] = cat
                         st.rerun()
-
-if gasto_empresa > 0:
-    with st.container(border=True):
-        st.plotly_chart(
-            plot_dona_gastos_empresa(_ge_por_concepto, gasto_empresa),
-            use_container_width=True,
-        )
-
-if _conc is not None:
-    with st.container(border=True):
-        st.caption(
-            "A quién se le paga sin que pase por una orden de compra, según el libro "
-            "de Contabilidad del período. La nómina nunca va a pasar por el SAE; un "
-            "proveedor de insumos en esta lista sí es una señal."
-        )
-        st.plotly_chart(plot_gasto_fuera_sae(_conc), use_container_width=True)
 
 with st.container(border=True):
     sem_event = st.plotly_chart(

@@ -7,8 +7,9 @@ cuenta. No trae detalle de proveedor (por eso no reemplaza al libro), pero es la
 cifra que debe cuadrar contra él — y sirve para nombrar el catálogo de cuentas
 sin teclear.
 
-Igual que el resto de lo que sube Contabilidad, no se persiste (`core/conciliacion.py`
-y `pages/5_Gastos_de_Empresa.py` lo consumen desde `st.session_state`).
+Igual que el resto de lo que sube Contabilidad, no se persiste — se carga en
+`app.py` (Carga de Archivos) y `core/conciliacion.py` / `pages/3_Cuadre_Contable.py`
+lo consumen desde `st.session_state`.
 
 Sin dependencias de Streamlit. `cargar_balanza(f) -> (df, warnings)`.
 """
@@ -271,5 +272,32 @@ def totales_por_mayor(df, periodos=None):
         return pd.DataFrame(columns=["Mayor", "Nombre_Oficial", "_Mes", "Debe"])
     return (
         d.groupby(["Mayor", "Nombre_Oficial", "_Mes"], as_index=False)["Debe"]
+        .sum()
+    )
+
+
+def totales_por_cuenta(df, periodos=None):
+    """
+    Suma de Debe por cuenta AUXILIAR (Nivel != NIVEL_MAYOR) y mes — al nivel de
+    detalle que el catálogo de cuentas contables puede clasificar.
+
+    Hermana de `totales_por_mayor()`, mismo motivo de existir (que nadie tenga
+    que tocar `Debe` crudo por su cuenta): esta es la que usa `core.fuentes` para
+    sumar solo lo que el usuario ya clasificó como Gasto operativo, cuenta por
+    cuenta, en vez de todo el mayor de un golpe.
+
+    No duplica contra `totales_por_mayor()`: verificado contra la balanza real,
+    los auxiliares de un mayor SIEMPRE suman exacto a su nivel 1 (diferencia
+    $0.00 en los 48 pares mayor×mes comprobados) — nivel 2 y 3 son hermanos bajo
+    el mayor, no padre-hijo, así que agregarlos todos no duplica el gasto.
+    """
+    d = df[df["Nivel"] != NIVEL_MAYOR].copy()
+    if periodos is not None:
+        claves = {str(p) for p in periodos}
+        d = d[d["_Mes"].astype(str).isin(claves)]
+    if len(d) == 0:
+        return pd.DataFrame(columns=["Cuenta", "Nombre_Oficial", "Mayor", "_Mes", "Debe"])
+    return (
+        d.groupby(["Cuenta", "Nombre_Oficial", "Mayor", "_Mes"], as_index=False)["Debe"]
         .sum()
     )

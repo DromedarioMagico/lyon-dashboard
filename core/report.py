@@ -15,6 +15,9 @@ from core.conciliacion import (
 )
 from core.etl_compras import aplicar_clasificaciones
 from core.etl_ventas import aplicar_vendedores
+from core.fuentes import (
+    faltantes, ingresos_confirmados_por_mes, gasto_contable_desglosado, resultado_rango,
+)
 from core.plots import (
     plot_donut_categorias,
     plot_curva_semanal_compras,
@@ -29,6 +32,11 @@ from core.plots import (
     plot_heatmap_cliente_mes,
     plot_barras_gastos_empresa,
     plot_waterfall_margen,
+    plot_cascada_mes,
+    plot_cascada_anual,
+    plot_gasto_por_cuenta_mes,
+    plot_facturado_vs_gasto,
+    plot_barras_temporales,
 )
 
 _BLUE  = COLOR_LYON
@@ -85,6 +93,7 @@ def generate_report_html(
     meta_ventas: dict | None = None,
     on_progress=None,          # callable(step: int, total: int, label: str) | None
     meses_filtrar: list | None = None,  # List[Period] from sidebar filter
+    session: dict | None = None,  # st.session_state — para la Sección 4 (Fase 6)
 ) -> str:
     meta_compras = meta_compras or {}
     meta_ventas  = meta_ventas  or {}
@@ -162,6 +171,126 @@ def generate_report_html(
     )
     margen_operativo     = margen - gasto_empresa_total
     margen_operativo_pct = margen_operativo / total_ventas * 100 if total_ventas > 0 else 0
+
+    # ═════════════════════════════════════════════════════════════════════════
+    #  CHAIRMAN BUNDLE (Fase 6) — ingresos confirmados (CFDI) vs. gasto
+    #  operativo contable (libro/balanza). Independiente de meses_comunes (que
+    #  es compras∩ventas): usa el mismo meses_filtrar que el resto del reporte
+    #  cuando se pasó uno, o todo lo disponible si no. Las mismas tres medidas
+    #  de `core.fuentes` que usa la página en pantalla — una sola implementación
+    #  de la aritmética del rango, dos renderers.
+    # ═════════════════════════════════════════════════════════════════════════
+    _chairman = None
+    _chairman_motivo = None
+    if session is None:
+        _chairman_motivo = "no se pasó la sesión al generador del reporte"
+    else:
+        _falta_chairman = faltantes("resultados_financieros", session)
+        if _falta_chairman:
+            _labels_f = [r if isinstance(r, str) else " o ".join(r) for r in _falta_chairman]
+            _chairman_motivo = "falta: " + ", ".join(_labels_f)
+        else:
+            _ing_mes, _ = ingresos_confirmados_por_mes(session, meses_filtrar)
+            _ing_mes = _ing_mes or {}
+            _gd_ch = gasto_contable_desglosado(session, meses_filtrar)
+            _meses_cmp = sorted(set(_ing_mes) & _gd_ch["meses_cubiertos"])
+            if not _meses_cmp:
+                _chairman_motivo = (
+                    "no hay meses con ventas confirmadas y gasto operativo a la "
+                    "vez en este periodo"
+                )
+            else:
+                _gop_cmp = sum(_gd_ch["por_mes"].get(m, 0.0) for m in _meses_cmp)
+                _sc_cmp  = sum(_gd_ch["por_mes_sin_clasificar"].get(m, 0.0) for m in _meses_cmp)
+                _ing_cmp = sum(_ing_mes[m] for m in _meses_cmp)
+                _piso_ch, _techo_ch, _exacto_ch = resultado_rango(_ing_cmp, _gop_cmp, _sc_cmp)
+                _fuente_gasto_lbl = {
+                    "libro": "Libro contable", "balanza": "Balanza de comprobación",
+                }.get(_gd_ch["fuente"], "—")
+
+                _mes_ult = _meses_cmp[-1]
+                _gop_m = _gd_ch["por_mes"].get(_mes_ult, 0.0)
+                _sc_m  = _gd_ch["por_mes_sin_clasificar"].get(_mes_ult, 0.0)
+                _piso_m, _techo_m, _ = resultado_rango(_ing_mes[_mes_ult], _gop_m, _sc_m)
+                _cuenta_mes_ult = {
+                    row["Cuenta_Nombre"]: row["Monto_MXN"]
+                    for _, row in _gd_ch["por_cuenta_y_mes"][
+                        _gd_ch["por_cuenta_y_mes"]["_Mes"] == _mes_ult
+                    ].iterrows()
+                }
+
+                _resultado_por_mes = {}
+                for _m in _meses_cmp:
+                    _p, _, _ = resultado_rango(
+                        _ing_mes[_m], _gd_ch["por_mes"].get(_m, 0.0),
+                        _gd_ch["por_mes_sin_clasificar"].get(_m, 0.0),
+                    )
+                    _resultado_por_mes[_m] = _p
+
+                fig_cascada_mes  = plot_cascada_mes(
+                    _ing_mes[_mes_ult], _cuenta_mes_ult, _piso_m, _techo_m,
+                    label_mes(_mes_ult), sin_clasificar=_sc_m,
+                )
+                fig_cascada_anio = plot_cascada_anual(_resultado_por_mes, _piso_ch, _techo_ch)
+
+                _df_fvg_ch = pd.DataFrame({
+                    "_Mes": _meses_cmp,
+                    "Facturado_MXN": [_ing_mes[m] for m in _meses_cmp],
+                    "Gasto_MXN": [_gd_ch["por_mes"].get(m, 0.0) for m in _meses_cmp],
+                })
+                fig_ing_gasto = plot_facturado_vs_gasto(
+                    _df_fvg_ch, mostrar_valores=True, color_gasto=_RED,
+                )
+
+                fig_ing_mensual = fig_gasto_mensual = fig_gasto_cuenta = None
+                _df_cfdi_raw = session.get("df_cfdi")
+                if _df_cfdi_raw is not None and len(_df_cfdi_raw):
+                    _dr = _df_cfdi_raw[~_df_cfdi_raw["Cancelado"]].copy()
+                    if meses_filtrar:
+                        _dr = _dr[_dr["_Mes"].isin(set(meses_filtrar))]
+                    if len(_dr):
+                        _signo_ch = _dr["Tipo_Doc"].map(lambda t: 1.0 if t == "Factura" else -1.0)
+                        _dr["Ingreso_Neto_MXN"] = _dr["Subtotal_MXN"] * _signo_ch
+                        fig_ing_mensual = plot_barras_temporales(
+                            _dr, "Ingreso_Neto_MXN", "Ingresos confirmados por mes", _GREEN,
+                        )
+                if len(_gd_ch["por_cuenta_y_mes"]):
+                    fig_gasto_mensual = plot_barras_temporales(
+                        _gd_ch["por_cuenta_y_mes"], "Monto_MXN", "Gasto operativo por mes", _RED,
+                    )
+                    fig_gasto_cuenta = plot_gasto_por_cuenta_mes(_gd_ch["por_cuenta_y_mes"])
+
+                _tabla_ch_rows = ""
+                for _m in _meses_cmp:
+                    _p2, _t2, _ = resultado_rango(
+                        _ing_mes[_m], _gd_ch["por_mes"].get(_m, 0.0),
+                        _gd_ch["por_mes_sin_clasificar"].get(_m, 0.0),
+                    )
+                    _tabla_ch_rows += (
+                        f"<tr><td>{label_mes(_m)}</td>"
+                        f"<td>{_fmt_m(_ing_mes[_m])}</td>"
+                        f"<td>{_fmt_m(_gd_ch['por_mes'].get(_m, 0.0))}</td>"
+                        f"<td>{_fmt_m(_gd_ch['por_mes_sin_clasificar'].get(_m, 0.0))}</td>"
+                        f"<td>{_fmt_m(_p2)}</td><td>{_fmt_m(_t2)}</td></tr>"
+                    )
+                _tabla_ch_rows += (
+                    '<tr class="total-row"><td>TOTAL</td>'
+                    f"<td>{_fmt_m(_ing_cmp)}</td><td>{_fmt_m(_gop_cmp)}</td>"
+                    f"<td>{_fmt_m(_sc_cmp)}</td><td>{_fmt_m(_piso_ch)}</td>"
+                    f"<td>{_fmt_m(_techo_ch)}</td></tr>"
+                )
+                _tabla_chairman = (
+                    '<table class="rpt-table"><thead><tr><th>Mes</th><th>Ingresos</th>'
+                    '<th>Gasto operativo</th><th>Sin clasificar</th>'
+                    '<th>Resultado (piso)</th><th>Resultado (techo)</th></tr></thead>'
+                    f'<tbody>{_tabla_ch_rows}</tbody></table>'
+                )
+
+                _chairman = dict(
+                    piso=_piso_ch, techo=_techo_ch, exacto=_exacto_ch,
+                    ingresos=_ing_cmp, gasto=_gop_cmp, sin_clasificar=_sc_cmp,
+                    fuente=_fuente_gasto_lbl, tabla=_tabla_chairman,
+                )
 
     # Vendedores aggregation (shared by chart + table)
     vend = (
@@ -251,85 +380,6 @@ def generate_report_html(
         )
 
     # ═════════════════════════════════════════════════════════════════════════
-    #  SECTION 4 — COMPARATIVA (inline)
-    # ═════════════════════════════════════════════════════════════════════════
-
-    # Ventas vs Compras + Margen %
-    c1 = go.Figure()
-    c1.add_trace(go.Bar(x=mes_df["Mes"], y=mes_df["Ventas"], name="Ventas",
-                        marker_color=_GREEN,
-                        hovertemplate="<b>%{x}</b><br>Ventas: $%{y:,.0f}<extra></extra>"))
-    c1.add_trace(go.Bar(x=mes_df["Mes"], y=mes_df["Compras"], name="Compras",
-                        marker_color=_BLUE,
-                        hovertemplate="<b>%{x}</b><br>Compras: $%{y:,.0f}<extra></extra>"))
-    _mp_min = min(float(mes_df["Margen_pct"].min()) - 10, -5)
-    _mp_max = float(mes_df["Margen_pct"].max()) + 15
-    c1.add_trace(go.Scatter(
-        x=mes_df["Mes"], y=mes_df["Margen_pct"], name="Margen %", yaxis="y2",
-        mode="lines+markers", line=dict(color=_AMBER, width=2.5, dash="dot"),
-        marker=dict(size=8),
-        hovertemplate="<b>%{x}</b><br>Margen: %{y:.1f}%<extra></extra>",
-    ))
-    c1.update_layout(
-        title="<b>Ventas vs Compras por Mes</b>",
-        barmode="group", template="plotly_white", height=460,
-        legend=dict(orientation="h", y=1.14, x=0.5, xanchor="center"),
-        yaxis=dict(title="MXN", tickformat="$,.0f"),
-        yaxis2=dict(title="Margen %", overlaying="y", side="right",
-                    ticksuffix="%", showgrid=False, range=[_mp_min, _mp_max]),
-        margin=dict(t=95, b=40, l=80, r=80),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-    )
-
-    # Margen bruto mensual
-    bar_colors = [
-        "rgba(84,130,53,0.85)" if v >= 0 else "rgba(192,0,0,0.85)"
-        for v in mes_df["Margen"]
-    ]
-    c2 = go.Figure(go.Bar(
-        x=mes_df["Mes"], y=mes_df["Margen"], marker_color=bar_colors,
-        text=mes_df["Margen"].apply(_fmt_m),
-        textposition="outside",
-        hovertemplate="<b>%{x}</b><br>Margen: $%{y:,.0f}<extra></extra>",
-    ))
-    c2.add_hline(y=0, line_color="#6B7280", line_width=1)
-    c2.update_layout(
-        title="<b>Margen Bruto Mensual</b>",
-        template="plotly_white", height=400, showlegend=False,
-        yaxis=dict(tickformat="$,.0f"),
-        margin=dict(t=60, b=40, l=90, r=40),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-    )
-
-    # Gasto por categoría % de ventas — legend on the RIGHT to avoid tiny chart area
-    cat_mes = df_cf.groupby(["_Mes", "Categoria"])["Gasto_Total_MXN"].sum().reset_index()
-    cat_mes = cat_mes.merge(mes_v[["_Mes", "Ventas"]], on="_Mes", how="left")
-    cat_mes["Pct"] = cat_mes.apply(
-        lambda r: r["Gasto_Total_MXN"] / r["Ventas"] * 100 if r["Ventas"] > 0 else 0, axis=1
-    )
-    cat_mes["Mes"] = cat_mes["_Mes"].apply(label_mes)
-    cats_order = (cat_mes.groupby("Categoria")["Gasto_Total_MXN"]
-                          .sum().sort_values(ascending=False).index.tolist())
-    c3 = go.Figure()
-    for cat in cats_order:
-        sub = cat_mes[cat_mes["Categoria"] == cat].sort_values("_Mes")
-        c3.add_trace(go.Bar(
-            x=sub["Mes"], y=sub["Pct"],
-            name=cat if len(cat) <= 24 else cat[:22] + "…",
-            marker_color=PALETA_CATEGORIAS.get(cat, _GRAY),
-            hovertemplate=f"<b>%{{x}}</b><br>{cat}: %{{y:.1f}}% de ventas<extra></extra>",
-        ))
-    c3.update_layout(
-        title="<b>Gasto por Categoría como % de Ventas del Mes</b>",
-        barmode="stack", template="plotly_white", height=500,
-        legend=dict(orientation="v", x=1.01, y=0.5, xanchor="left",
-                    yanchor="middle", font=dict(size=10)),
-        yaxis=dict(ticksuffix="%"),
-        margin=dict(t=60, b=40, l=60, r=240),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-    )
-
-    # ═════════════════════════════════════════════════════════════════════════
     #  SECTION 6 — PATRONES TEMPORALES (heatmaps)
     # ═════════════════════════════════════════════════════════════════════════
     df_cf["_sem"] = df_cf["Fecha de documento"].dt.day.apply(_semana)
@@ -393,9 +443,6 @@ def generate_report_html(
         ("pareto_cli",  fig_pareto_cli,  "Pareto de Clientes"),
         ("vend_bar",    fig_vend_bar,    "Ventas por Vendedor"),
         ("heatmap_cm",  fig_heatmap_cm,  "Heatmap Cliente × Mes"),
-        ("c1",          c1,              "Ventas vs Compras"),
-        ("c2",          c2,              "Margen Mensual"),
-        ("c3",          c3,              "Gasto % Ventas"),
         ("c7",          c7,              "Heatmap Compras"),
         ("c8",          c8,              "Heatmap Ventas"),
     ]
@@ -409,6 +456,16 @@ def generate_report_html(
         _queue.append(("ge_bar",       fig_ge_bar,       "Gastos de Empresa por Concepto"))
     if fig_ge_waterfall is not None:
         _queue.append(("ge_waterfall", fig_ge_waterfall, "Margen Bruto → Operativo"))
+    if _chairman is not None:
+        _queue.append(("cas_mes",       fig_cascada_mes,   "Cómo nos fue este mes"))
+        _queue.append(("cas_anio",      fig_cascada_anio,  "Cómo se ve el año"))
+        _queue.append(("ing_gasto",     fig_ing_gasto,     "Ingresos vs gasto operativo"))
+        if fig_ing_mensual is not None:
+            _queue.append(("ing_mensual",   fig_ing_mensual,   "Evolución de ingresos"))
+        if fig_gasto_mensual is not None:
+            _queue.append(("gasto_mensual", fig_gasto_mensual, "Evolución de gasto por mes"))
+        if fig_gasto_cuenta is not None:
+            _queue.append(("gasto_cuenta",  fig_gasto_cuenta,  "Gasto por cuenta contable"))
 
     _n = len(_queue)
     _imgs: dict[str, str] = {}
@@ -456,6 +513,24 @@ def generate_report_html(
                    "Margen Bruto − Gastos de Empresa", accent=COLOR_GASTOS_EMPRESA)
             + _kpi("Margen Operativo %", f"{margen_operativo_pct:.1f}%", mo_color,
                    accent=COLOR_GASTOS_EMPRESA)
+        )
+    # Ingresos confirmados / gasto operativo contable (Fase 6) — se AGREGAN al
+    # grid existente, nunca lo redefinen: "Margen" sigue siendo Ventas−Compras
+    # arriba, el Resultado de abajo es una medida distinta con su propio nombre.
+    if _chairman is not None:
+        _res_color = _GREEN if (_chairman["piso"] or 0) >= 0 else _RED
+        _res_label = "Resultado" if _chairman["exacto"] else "Resultado (rango)"
+        _res_val = (
+            _fmt_m(_chairman["techo"]) if _chairman["exacto"]
+            else f"{_fmt_m(_chairman['piso'])} – {_fmt_m(_chairman['techo'])}"
+        )
+        kpi_html += (
+            _kpi("Ingresos confirmados", _fmt_m(_chairman["ingresos"]), _GREEN,
+                 "Reporte CFDI, neto de notas, sin IVA", accent=_GREEN)
+            + _kpi("Gasto operativo contable", _fmt_m(_chairman["gasto"]), _RED,
+                   _chairman["fuente"], accent=_RED)
+            + _kpi(_res_label, _res_val, _res_color,
+                   "Ingresos confirmados − gasto operativo", accent=_BLUE)
         )
     kpi_html += '</div>'
 
@@ -716,6 +791,9 @@ body{font-family:'Segoe UI',system-ui,-apple-system,Arial,sans-serif;
             + _img("pendientes")
             if "pendientes" in _imgs else ""
         )
+        + risk_box
+        + '<div class="sub">Concentración de Riesgo por Categoría</div>'
+        + prov_table
     )
 
     # Section 3 — Ventas
@@ -737,23 +815,49 @@ body{font-family:'Segoe UI',system-ui,-apple-system,Arial,sans-serif;
         + _img("heatmap_cm")
     )
 
-    # Section 4 — Comparativa
+    # Section 4 — Resultados Financieros (Fase 6: ingresos confirmados vs. gasto
+    # operativo contable — "solo gastos y ventas confirmadas" en esta sección).
     _ge_waterfall_html = (
-        '<div class="sub">De Margen Bruto a Margen Operativo</div>' + _img("ge_waterfall")
+        '<div class="sub">De Margen Bruto a Margen Operativo (Gastos de Empresa)</div>'
+        + _img("ge_waterfall")
         if gasto_empresa_total > 0 else ""
     )
-    s4 = (
-        '<div class="sub">Ventas vs Compras por Mes · Margen %</div>'
-        + _img("c1")
-        + '<div class="sub">Margen Bruto Mensual</div>'
-        + _img("c2")
-        + _ge_waterfall_html
-        + '<div class="sub">Gasto por Categoría como % de Ventas del Mes</div>'
-        + _img("c3")
-        + risk_box
-        + '<div class="sub">Concentración de Riesgo por Categoría</div>'
-        + prov_table
-    )
+    if _chairman is None:
+        s4 = (
+            _ge_waterfall_html
+            + f'<div class="callout warn">⚠️ Sin suficientes fuentes para medir '
+              f'ingresos confirmados contra gasto operativo contable este periodo '
+              f'— {_chairman_motivo}.</div>'
+        )
+    else:
+        _rango_banner = ""
+        if _chairman["sin_clasificar"] > 0:
+            _rango_banner = (
+                f'<div class="callout warn">⚠️ {_fmt_m(_chairman["sin_clasificar"])} '
+                f'sin clasificar en cuentas contables del periodo comparable — el '
+                f'Resultado se muestra como rango mientras eso no se resuelva.</div>'
+            )
+        s4 = (
+            _ge_waterfall_html
+            + _rango_banner
+            + '<div class="sub">Cómo nos fue este mes</div>'
+            + _img("cas_mes")
+            + '<div class="sub">Cómo se ve el año</div>'
+            + _img("cas_anio")
+            + '<div class="sub">Ingresos confirmados vs. gasto operativo, mes a mes</div>'
+            + _img("ing_gasto")
+            + (
+                '<div class="sub">Evolución de ingresos confirmados</div>' + _img("ing_mensual")
+                if "ing_mensual" in _imgs else ""
+            )
+            + (
+                '<div class="sub">Evolución de gasto operativo por cuenta contable</div>'
+                + _img("gasto_mensual") + _img("gasto_cuenta")
+                if "gasto_mensual" in _imgs else ""
+            )
+            + '<div class="sub">Resumen mensual</div>'
+            + _chairman["tabla"]
+        )
 
     # Section 5 — Vendedores
     s5 = ""
@@ -813,7 +917,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,Arial,sans-serif;
   {_sec(1, "Resumen Ejecutivo", s1)}
   {_sec(2, "Análisis de Compras", s2)}
   {_sec(3, "Análisis de Ventas", s3)}
-  {_sec(4, "Comparativa Compras vs Ventas", s4)}
+  {_sec(4, "Resultados Financieros", s4)}
   {_sec(5, "Productividad de Vendedores", s5)}
   {_sec(6, "Patrones Temporales", s6)}
 </div>

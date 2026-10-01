@@ -250,6 +250,14 @@ LIBRO_DE_MAS  = "Libro de más"
 LIBRO_DE_MENOS = "Libro de menos"
 SOLO_BALANZA  = "Solo en balanza"
 SOLO_LIBRO    = "Solo en libro"
+# Espejo exacto de MES_SIN_SAE (arriba): un mes que el libro simplemente no
+# cubre no es lo mismo que "la balanza trae algo que el libro nunca manda" —
+# lo primero es ausencia de dato, lo segundo es un hallazgo real. Mezclarlos
+# haría ver como descuadre lo que solo es que el archivo del libro no llega
+# tan atrás (o adelante) como la balanza.
+MES_SIN_LIBRO = "Mes sin libro"
+
+ESTADOS_CUADRE = [CUADRA, LIBRO_DE_MAS, LIBRO_DE_MENOS, SOLO_BALANZA, SOLO_LIBRO, MES_SIN_LIBRO]
 
 _TOL_CUADRE = 1.0  # centavos de redondeo — no un descuadre real
 
@@ -270,9 +278,17 @@ def cuadre_balanza_vs_libro(df_balanza, df_libro, periodos=None):
     Returns df: Mayor · Nombre_Oficial · _Mes · Balanza · Libro · Diferencia ·
     Estado. Un mayor que el libro trae pero la balanza no reporta para ese mes
     (p. ej. las cuentas `1006-*` de anticipos) sale como "Solo en libro" — eso
-    es información real, no un error de la función.
+    es información real, no un error de la función. Un mes que el libro no
+    cubre en absoluto sale como "Mes sin libro", nunca como "Solo en balanza":
+    ausencia de archivo no es lo mismo que un hueco real que reclamarle a
+    Contabilidad (ver `MES_SIN_LIBRO`).
     """
     from core.etl_balanza import totales_por_mayor
+
+    # Cobertura REAL del libro tal como se cargó — independiente de cualquier
+    # `periodos` que el caller pida más abajo, porque la pregunta es "¿Contabilidad
+    # mandó este mes?", no "¿este mes quedó dentro del filtro de la página?".
+    meses_libro = set(df_libro["_Mes"].unique())
 
     bal = totales_por_mayor(df_balanza, periodos)
     bal = bal.rename(columns={"Debe": "Balanza"})
@@ -299,6 +315,8 @@ def cuadre_balanza_vs_libro(df_balanza, df_libro, periodos=None):
     merged["Diferencia"] = merged["Balanza"] - merged["Libro"]
 
     def _estado(row):
+        if row["_Mes"] not in meses_libro:
+            return MES_SIN_LIBRO
         if row["Balanza"] == 0 and row["Libro"] != 0:
             return SOLO_LIBRO
         if row["Libro"] == 0 and row["Balanza"] != 0:

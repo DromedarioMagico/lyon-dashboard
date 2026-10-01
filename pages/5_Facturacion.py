@@ -1,5 +1,3 @@
-import datetime as dt
-
 import pandas as pd
 import streamlit as st
 
@@ -8,7 +6,9 @@ from core.conciliacion import (
     contabilidad_de_sesion, resumen_conciliacion, NAT_GASTO,
 )
 from core.database import init_db
-from core.etl_facturacion import cargar_facturacion
+from core.fuentes import (
+    kpi_card as _kpi, fmt_money, fmt_pct, gasto_operativo_contable,
+)
 from core.navigation import (
     render_sidebar_search, render_sidebar_status, inject_custom_css,
     handle_pending_nav, render_periodo_filter,
@@ -44,63 +44,21 @@ st.caption(
 )
 
 
-# ── _kpi local (copiado, mismo patrón que el resto de páginas) ────────────────
-def _kpi(label, value, color, desc=None):
-    info = ""
-    if desc:
-        info = (
-            f"<details style='display:inline-block;margin-left:5px;vertical-align:middle;'>"
-            f"<summary style='cursor:pointer;color:#9CA3AF;font-size:.78rem;"
-            f"list-style:none;outline:none;user-select:none;'>ⓘ</summary>"
-            f"<div style='margin-top:6px;padding:8px 10px;background:#F9FAFB;"
-            f"border:1px solid #E5E7EB;border-radius:6px;font-size:.75rem;"
-            f"color:#374151;font-weight:400;text-transform:none;letter-spacing:0;"
-            f"line-height:1.5;white-space:normal;'>{desc}</div></details>"
-        )
-    return f"""
-    <div style="background:#fff;border:1px solid #E1E7EC;border-radius:10px;
-                padding:1rem 1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.05);">
-      <p style="margin:0 0 4px;font-size:.72rem;font-weight:600;color:#6B7280;
-                text-transform:uppercase;letter-spacing:.5px;">{label}{info}</p>
-      <p style="margin:0;font-size:1.65rem;font-weight:700;color:{color};
-                line-height:1.2;">{value}</p>
-    </div>"""
-
-
 _GREEN = "#548235"
 _AMBER = "#E97132"
 _RED   = "#C00000"
 _GRAY  = "#9E9E9E"
 
 
-# ── Upload ────────────────────────────────────────────────────────────────────
+# ── Gate: sin Facturación no hay nada que mostrar aquí ────────────────────────
 if "df_facturacion" not in st.session_state:
-    st.markdown(
-        "Sube **`Facturación <MES> 2026 - LYON.xlsx`** (el archivo que ya genera "
-        "Contabilidad, sin modificar)."
+    st.info(
+        "Todavía no has cargado ningún archivo mensual de Facturación en esta "
+        "sesión. Súbelo en **Carga de Archivos** (puedes subir varios meses de "
+        "un jalón)."
     )
-    up = st.file_uploader(
-        "Archivo de facturación", type=["xlsx", "xlsm"], label_visibility="collapsed",
-    )
-    if up:
-        with st.spinner("Procesando archivo…"):
-            try:
-                data, warns = cargar_facturacion(up)
-                st.session_state.df_facturacion = data
-                st.session_state.df_facturacion_meta = {
-                    "archivo":     up.name,
-                    "uploaded_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "periodo":     str(data["periodo"]) if data["periodo"] else "—",
-                }
-                for w in warns:
-                    st.warning(w)
-                st.success(
-                    f"✅ {len(data['facturas'])} facturas cargadas · "
-                    f"periodo {data['periodo']}."
-                )
-                st.rerun()
-            except ValueError as e:
-                st.error(f"Error al procesar el archivo:\n\n{e}")
+    if st.button("Ir a Carga de Archivos", type="primary"):
+        st.switch_page("app.py")
     st.stop()
 
 
@@ -128,20 +86,27 @@ st.info(
 facturado_periodo = float(df_fact["Subtotal_MXN"].sum())
 pendiente_periodo = float(df_rem["Subtotal_MXN"].sum())
 
-# ── Gasto contable del mismo periodo ──────────────────────────────────────────
-# Solo cuentas marcadas como gasto operativo: los movimientos de balance
-# (anticipos) inflarían el costo y distorsionarían el margen.
-_conc = contabilidad_de_sesion()
+# ── Gasto operativo contable del mismo periodo ────────────────────────────────
+# Esta es una de las DOS medidas de "gasto" que trae la app (ver core/fuentes.py):
+# todo el gasto operativo del periodo, venga del libro o, si el libro no cubre
+# el mes completo, de la balanza — nunca se mezclan las dos fuentes dentro de
+# la misma cifra, y se declara de dónde salió.
+_conc   = contabilidad_de_sesion()
+res_ctb = resumen_conciliacion(_conc) if _conc is not None else None
 
-gasto_periodo       = 0.0
+_meses_periodo = [periodo] if periodo is not None else None
+gasto_operativo_ctb, _fuente_gasto = gasto_operativo_contable(
+    st.session_state, _meses_periodo,
+)
+
+# El desglose por categoría (para el waterfall y la tabla de "peso") solo existe
+# cuando la cifra viene del libro — la balanza no trae detalle de proveedor ni
+# categoría, solo el total por cuenta mayor.
 gasto_por_categoria = {}
-res_ctb             = None
-if _conc is not None:
-    res_ctb = resumen_conciliacion(_conc)
+if _fuente_gasto == "libro" and _conc is not None:
     _op = _conc[_conc["Naturaleza"] == NAT_GASTO]
     if periodo is not None:
         _op = _op[_op["_Mes"] == periodo]
-    gasto_periodo = float(_op["Monto_MXN"].sum())
     # Por Categoría, no por cuenta: es el bucket que el usuario arma a propósito
     # ("Nómina" agrupa una o varias cuentas) — agrupar por cuenta individual
     # dejaría esa clasificación sin reflejo en la gráfica.
@@ -150,8 +115,14 @@ if _conc is not None:
         .sort_values(ascending=False).to_dict()
     )
 
-margen     = facturado_periodo - gasto_periodo
-margen_pct = margen / facturado_periodo * 100 if facturado_periodo else 0.0
+margen = (
+    facturado_periodo - gasto_operativo_ctb
+    if gasto_operativo_ctb is not None else None
+)
+margen_pct = (
+    (margen / facturado_periodo * 100 if facturado_periodo else 0.0)
+    if margen is not None else None
+)
 
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -170,31 +141,28 @@ with k1:
                           "la columna del mes en la hoja HISTORICO."),
                 unsafe_allow_html=True)
 with k2:
-    if gasto_periodo > 0:
-        st.markdown(_kpi("Gasto contable", f"${gasto_periodo/1e6:,.2f}M",
-                         COLOR_GASTOS_EMPRESA,
-                         desc="Movimientos del libro contable de este mes en cuentas "
-                              "marcadas como gasto operativo. Los anticipos y "
-                              "movimientos de balance no cuentan."),
-                    unsafe_allow_html=True)
-    else:
-        st.markdown(_kpi("Gasto contable", "— sin contabilidad —", _GRAY,
-                         desc="Sube la base de Contabilidad en Gastos de Empresa y "
-                              "clasifica las cuentas para ver el margen del periodo."),
-                    unsafe_allow_html=True)
+    st.markdown(_kpi(
+        "Gasto operativo contable", fmt_money(gasto_operativo_ctb),
+        COLOR_GASTOS_EMPRESA if gasto_operativo_ctb is not None else _GRAY,
+        desc="Todo el gasto operativo que reportó Contabilidad para este mes. "
+             "Sale del libro de movimientos cuando lo cubre completo; si no, de "
+             "la balanza completa del mes — nunca se mezclan las dos fuentes "
+             "dentro de la misma cifra.",
+        fuente=f"Fuente: {_fuente_gasto}" if _fuente_gasto else "Sin contabilidad cargada",
+    ), unsafe_allow_html=True)
 with k3:
-    st.markdown(_kpi("Margen del periodo",
-                     f"${margen/1e6:,.2f}M" if gasto_periodo > 0 else "—",
-                     _GREEN if margen >= 0 else _RED,
-                     desc="Facturado menos gasto contable del mismo mes."),
-                unsafe_allow_html=True)
+    st.markdown(_kpi(
+        "Margen del periodo", fmt_money(margen),
+        _GREEN if (margen or 0) >= 0 else _RED,
+        desc="Facturado menos gasto operativo contable del mismo mes.",
+    ), unsafe_allow_html=True)
 with k4:
-    st.markdown(_kpi("Margen %",
-                     f"{margen_pct:.1f}%" if gasto_periodo > 0 else "—",
-                     _GREEN if margen >= 0 else _RED,
-                     desc="Margen sobre facturación. Es el número que dice si el mes "
-                          "se sostiene solo."),
-                unsafe_allow_html=True)
+    st.markdown(_kpi(
+        "Margen %", fmt_pct(margen_pct),
+        _GREEN if (margen or 0) >= 0 else _RED,
+        desc="Margen sobre facturación. Es el número que dice si el mes "
+             "se sostiene solo.",
+    ), unsafe_allow_html=True)
 
 if res_ctb and res_ctb["n_cuentas_sin_clasificar"]:
     st.warning(
@@ -205,7 +173,7 @@ if res_ctb and res_ctb["n_cuentas_sin_clasificar"]:
     )
 
 with st.container(border=True):
-    if gasto_periodo > 0:
+    if gasto_por_categoria:
         st.plotly_chart(
             plot_waterfall_margen(facturado_periodo, gasto_por_categoria, margen),
             use_container_width=True,
@@ -220,10 +188,17 @@ with st.container(border=True):
             f"**\\${margen/1e6:,.2f}M** ({margen_pct:.1f}%) después del gasto que "
             f"reportó Contabilidad para {meta['periodo']}."
         )
+    elif gasto_operativo_ctb is not None:
+        st.info(
+            f"El gasto operativo contable de este mes viene de la balanza "
+            f"({fmt_money(gasto_operativo_ctb)}), que no trae detalle por "
+            f"categoría — solo el libro de movimientos lo tiene."
+        )
     else:
         st.info(
-            "Sube la base de Contabilidad en **Gastos de Empresa** y clasifica las "
-            "cuentas para ver aquí de dónde se va el ingreso del mes."
+            "Sube la base de Contabilidad en **Carga de Archivos** y clasifica las "
+            "cuentas en **Clasificaciones** para ver aquí de dónde se va el ingreso "
+            "del mes."
         )
 
 
@@ -367,7 +342,7 @@ st.caption(
 )
 
 with st.container(border=True):
-    if gasto_periodo > 0:
+    if gasto_por_categoria:
         peso = pd.DataFrame(
             [
                 {
@@ -390,8 +365,13 @@ with st.container(border=True):
         )
         st.caption(
             f"El gasto contable del mes equivale al "
-            f"**{gasto_periodo/facturado_periodo*100:.1f}%** de lo facturado."
+            f"**{gasto_operativo_ctb/facturado_periodo*100:.1f}%** de lo facturado."
             if facturado_periodo else ""
+        )
+    elif gasto_operativo_ctb is not None:
+        st.info(
+            "El gasto de este mes viene de la balanza, que no trae detalle por "
+            "categoría para desglosar este peso."
         )
     else:
         st.info(
@@ -422,8 +402,8 @@ if _conc is not None and len(df_hist) > 0:
 #  6 — El año facturado (reporte CFDI de Contabilidad — condicional)
 # ════════════════════════════════════════════════════════════════════════════════
 # A diferencia de los bloques 1-5 (que vienen del archivo mensual hecho a mano y
-# solo ven un mes a la vez), esto sale del reporte CFDI del SAT que sube en
-# Gastos de Empresa: cubre el año completo y sabe qué se canceló.
+# solo ven un mes a la vez), esto sale del reporte CFDI del SAT que se sube en
+# Carga de Archivos: cubre el año completo y sabe qué se canceló.
 if _df_cfdi is not None:
     st.divider()
     st.markdown("### El año facturado")
@@ -503,10 +483,3 @@ if _df_cfdi is not None:
     with st.container(border=True):
         st.plotly_chart(plot_cobranza_mix(_df_cfdi), use_container_width=True)
 
-
-# ── Reset ─────────────────────────────────────────────────────────────────────
-st.divider()
-if st.button("🗑 Cargar otro archivo de facturación"):
-    for k in ("df_facturacion", "df_facturacion_meta"):
-        st.session_state.pop(k, None)
-    st.rerun()

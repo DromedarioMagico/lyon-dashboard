@@ -208,7 +208,7 @@ def plot_waterfall_margen(margen_bruto, ge_por_concepto, margen_operativo, top_n
     Waterfall bridge: Margen Bruto → (− Gastos de Empresa por concepto, top N
     + 'Otros conceptos') → Margen Operativo. Makes the P&L impact of Gastos
     de Empresa explicit instead of a bolted-on info box. Used in both the
-    Comparativa page and the HTML report.
+    Resultados Financieros page and the HTML report.
     """
     items = sorted(ge_por_concepto.items(), key=lambda kv: kv[1], reverse=True)
     top   = items[:top_n]
@@ -676,13 +676,28 @@ def plot_pareto_clientes_ventas(df, venta_total, top_n=_TOP_N_CLIENTES):
 # ══════════════════════════════════════════════════════════════════════════════
 #  VENTAS — 5: Ventas por vendedor
 # ══════════════════════════════════════════════════════════════════════════════
-def plot_ventas_por_vendedor(df, venta_total):
+def plot_ventas_por_vendedor(df, venta_total, unidad="pedidos", comisiones_por_vendedor=None):
+    """
+    `unidad`: la palabra para el conteo en cada barra ("pedidos" o "facturas")
+    — el conteo de documentos es el mismo, solo cambia cómo se llama según la
+    base que se esté midiendo.
+
+    `comisiones_por_vendedor`: dict {vendedor: monto}, opcional. Cuando la
+    base son ventas confirmadas, el CFDI no trae comisiones — se pasa el total
+    real tomado de los pedidos en vez de agregar una columna `Comision_MXN`
+    que esa base no tiene. `None` (default) conserva el comportamiento
+    original: agregar `Comision_MXN` del propio `df`.
+    """
     vv = (df.groupby("Vendedor")
             .agg(Ventas=("Importe_MXN", "sum"),
-                 Pedidos=("Importe_MXN", "count"),
-                 Comisiones=("Comision_MXN", "sum"))
+                 Pedidos=("Importe_MXN", "count"))
             .sort_values("Ventas", ascending=False)
             .reset_index())
+    if comisiones_por_vendedor is not None:
+        vv["Comisiones"] = vv["Vendedor"].map(comisiones_por_vendedor).fillna(0.0)
+    else:
+        _com = df.groupby("Vendedor")["Comision_MXN"].sum()
+        vv["Comisiones"] = vv["Vendedor"].map(_com).fillna(0.0)
 
     paleta_vend = ["#1F4E79", "#C00000", "#E97132", "#7030A0",
                    "#548235", "#2E75B6", "#BF8F00", "#A02B93"]
@@ -705,7 +720,7 @@ def plot_ventas_por_vendedor(df, venta_total):
         y=vv["Vendedor"].iloc[::-1],
         orientation="h",
         marker=dict(color=colors[::-1], line=dict(color="white", width=1)),
-        text=[f"${v/1e6:,.2f}M  ·  {p} pedidos"
+        text=[f"${v/1e6:,.2f}M  ·  {p} {unidad}"
               for v, p in zip(vv["Ventas"].iloc[::-1], vv["Pedidos"].iloc[::-1])],
         textposition="outside",
         textfont=dict(size=11, color="#1F4E79"),
@@ -775,6 +790,65 @@ def plot_heatmap_cliente_mes(df, top_n=_TOP_N_HEATMAP):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+#  VENTAS — 7: Tendencia mensual de un cliente vs el resto (drill-down)
+# ══════════════════════════════════════════════════════════════════════════════
+def plot_tendencia_cliente(df, cliente, display_name):
+    """
+    Tendencia mensual de UN cliente contra el promedio mensual por cliente del
+    resto de la cartera — reemplaza la barra "Ventas Mensuales" del drill-down
+    cuando lo que se quiere ver es si el cliente crece o decrece y cómo se
+    compara, no solo su nivel absoluto mes a mes.
+
+    `df`: el periodo completo (TODOS los clientes, no solo el filtrado a
+    `cliente`), con columnas `_Mes`, `Cliente_Nombre`, `Importe_MXN`. El
+    contraste usa el PROMEDIO por cliente del resto, no la suma de todos los
+    demás juntos — sumar dejaría al cliente individual invisible contra
+    docenas de clientes acumulados.
+    """
+    if df is None or len(df) == 0:
+        return _figura_vacia("Sin datos para calcular la tendencia.")
+
+    meses = sorted(df["_Mes"].unique())
+    cli   = df[df["Cliente_Nombre"] == cliente]
+    resto = df[df["Cliente_Nombre"] != cliente]
+
+    serie_cli = cli.groupby("_Mes")["Importe_MXN"].sum().reindex(meses, fill_value=0.0)
+    n_resto   = resto["Cliente_Nombre"].nunique()
+    serie_resto = (
+        resto.groupby("_Mes")["Importe_MXN"].sum().reindex(meses, fill_value=0.0) / n_resto
+        if n_resto else pd.Series(0.0, index=meses)
+    )
+
+    x = [label_mes(m) for m in meses]
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=x, y=serie_cli.values, mode="lines+markers", name=display_name,
+        line=dict(color=COLOR_VENTAS, width=3),
+        marker=dict(size=9, color=COLOR_VENTAS),
+        hovertemplate=f"<b>{display_name}</b><br>%{{x}}: $%{{y:,.0f}} MXN<extra></extra>",
+    ))
+    fig.add_trace(go.Scatter(
+        x=x, y=serie_resto.values, mode="lines+markers", name="Promedio del resto",
+        line=dict(color="#9E9E9E", width=2, dash="dash"),
+        marker=dict(size=7, color="#9E9E9E"),
+        hovertemplate="<b>Promedio por cliente (resto)</b><br>"
+                      "%{x}: $%{y:,.0f} MXN<extra></extra>",
+    ))
+    fig.update_layout(
+        title=(f"<b>Tendencia mensual — {display_name}</b>"
+               f"<br><sup>Contra el promedio mensual por cliente del resto de "
+               f"la cartera ({n_resto} cliente(s))</sup>"),
+        template="plotly_white", height=400,
+        xaxis_title="", yaxis_title="MXN",
+        legend=dict(orientation="h", y=-0.15, x=0.1),
+        margin=dict(t=90, b=60, l=60, r=40),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    )
+    fig.update_yaxes(tickformat=",.0f", tickprefix="$")
+    return fig
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 #  COMPRAS — 5: Tabla Top N facturas individuales
 # ══════════════════════════════════════════════════════════════════════════════
 def plot_top_facturas(df, top_n=_TOP_N_FACTURAS):
@@ -821,7 +895,7 @@ def plot_top_facturas(df, top_n=_TOP_N_FACTURAS):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  FACTURACIÓN — el tramo pedido → factura (pages/6_Facturacion.py)
+#  FACTURACIÓN — el tramo pedido → factura (pages/5_Facturacion.py)
 # ══════════════════════════════════════════════════════════════════════════════
 
 _SEGMENTOS_ORDEN = [
@@ -1132,6 +1206,51 @@ def plot_conciliacion_sae(resumen):
     return fig
 
 
+def plot_cobertura_sae_pie(resumen):
+    """
+    Pie binario: de todo lo que reportó Contabilidad, qué parte pasó por el
+    proceso de compras y qué parte no. Solo dos rebanadas a propósito — la
+    barra apilada de 5 tramos (`plot_conciliacion_sae`, arriba) ya vive en
+    Cuadre Contable para la auditoría; aquí el punto es una pregunta simple de
+    sí/no. Lo que no se puede concluir (Por revisar / Mes sin SAE / Sin
+    comparar) NO tiene rebanada propia — mezclarlo aquí ya se probó confuso —
+    pero tampoco desaparece: la página lo reporta aparte, como texto con su
+    monto, junto a este pie.
+
+    `resumen` es el dict de `conciliacion.resumen_conciliacion()`.
+    """
+    en_sae = resumen.get("en_sae", 0.0)
+    fuera_sae = resumen.get("fuera_de_sae", 0.0)
+    total_concluyente = en_sae + fuera_sae
+    if total_concluyente <= 0:
+        return _figura_vacia("Sin movimientos concluyentes para comparar contra el SAE.")
+
+    fig = go.Figure(go.Pie(
+        labels=["Sí, en el SAE", "Fuera del SAE"],
+        values=[en_sae, fuera_sae], hole=0.55,
+        marker=dict(colors=[_COLOR_EN_SAE, _COLOR_FUERA_SAE], line=dict(color="white", width=1.5)),
+        textposition="inside", textinfo="percent",
+        texttemplate="%{percent:.1%}",
+        sort=False,
+        hovertemplate="<b>%{label}</b><br>$%{value:,.0f} MXN<br>%{percent}<extra></extra>",
+    ))
+    cobertura = en_sae / total_concluyente * 100 if total_concluyente else 0
+    fig.update_layout(
+        title="<b>¿El gasto del libro pasó por Compras?</b>",
+        template="plotly_white",
+        height=380,
+        annotations=[dict(
+            text=f"<b>{cobertura:.0f}%</b><br><span style='font-size:12px'>en el SAE</span>",
+            x=0.5, y=0.5, font=dict(size=19), showarrow=False,
+        )],
+        legend=dict(orientation="h", y=-0.12, x=0.15, font=dict(size=13)),
+        margin=dict(t=60, b=40, l=30, r=30),
+        uniformtext=dict(minsize=11, mode="hide"),
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
 def plot_gasto_fuera_sae(df, top_n=15):
     """
     Proveedores a los que se les paga sin que pase por el SAE, de mayor a menor.
@@ -1181,12 +1300,18 @@ def plot_gasto_fuera_sae(df, top_n=15):
     return fig
 
 
-def plot_facturado_vs_gasto(df_mes):
+def plot_facturado_vs_gasto(df_mes, mostrar_valores=False, color_gasto=None):
     """
     Ingreso facturado contra gasto reportado por Contabilidad, mes a mes, con el
     margen en porcentaje sobre eje secundario.
 
     `df_mes` necesita: _Mes (Period[M]), Facturado_MXN, Gasto_MXN.
+
+    `mostrar_valores=True` agrega el monto de cada barra como texto visible
+    (por defecto apagado: Facturación solo quiere la línea de margen % como
+    texto, igual que siempre). `color_gasto` sobreescribe el morado de Gastos
+    de Empresa — Resultados Financieros lo pinta rojo, como todo gasto en esa
+    página; por defecto se queda `COLOR_GASTOS_EMPRESA` tal cual.
     """
     if df_mes is None or len(df_mes) == 0:
         return _figura_vacia("Sin meses comparables entre facturación y contabilidad.")
@@ -1198,17 +1323,24 @@ def plot_facturado_vs_gasto(df_mes):
         (m / f * 100) if f else 0.0
         for m, f in zip(margen, d["Facturado_MXN"])
     ]
+    color_gasto = color_gasto or COLOR_GASTOS_EMPRESA
+    _bar_kwargs = (
+        dict(text=d["Facturado_MXN"], texttemplate="$%{text:,.2s}", textposition="outside")
+        if mostrar_valores else {}
+    )
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=etiquetas, y=d["Facturado_MXN"], name="Facturado (sin IVA)",
         marker_color=COLOR_VENTAS,
         hovertemplate="<b>%{x}</b><br>Facturado: $%{y:,.0f}<extra></extra>",
+        **_bar_kwargs,
     ))
     fig.add_trace(go.Bar(
         x=etiquetas, y=d["Gasto_MXN"], name="Gasto contable",
-        marker_color=COLOR_GASTOS_EMPRESA,
+        marker_color=color_gasto,
         hovertemplate="<b>%{x}</b><br>Gasto: $%{y:,.0f}<extra></extra>",
+        **({**_bar_kwargs, "text": d["Gasto_MXN"]} if mostrar_valores else {}),
     ))
     fig.add_trace(go.Scatter(
         x=etiquetas, y=margen_pct, name="Margen %", yaxis="y2",
@@ -1237,53 +1369,8 @@ def plot_facturado_vs_gasto(df_mes):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  CONTABILIDAD — cuadre contra la Balanza de Comprobación y mezcla de cobro
+#  CONTABILIDAD — mezcla de cobro
 # ══════════════════════════════════════════════════════════════════════════════
-def plot_cuadre_balanza(df_cuadre):
-    """
-    Balanza vs libro de movimientos, por cuenta mayor — barras agrupadas.
-
-    `df_cuadre` es la salida de `conciliacion.cuadre_balanza_vs_libro()`. No
-    corrige el descuadre ni decide cuál de las dos fuentes tiene razón: solo lo
-    ordena por tamaño para que el hueco más grande salte a la vista primero.
-    """
-    if df_cuadre is None or len(df_cuadre) == 0:
-        return _figura_vacia("Sin balanza y libro cargados a la vez para comparar.")
-
-    g = (
-        df_cuadre.groupby(["Mayor", "Nombre_Oficial"], as_index=False)
-        [["Balanza", "Libro", "Diferencia"]].sum()
-    )
-    g = g.sort_values("Diferencia", key=lambda s: s.abs(), ascending=True)
-    etiquetas = [f"{m} · {_trunc(n, 24)}" for m, n in zip(g["Mayor"], g["Nombre_Oficial"])]
-
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=g["Balanza"], y=etiquetas, orientation="h", name="Balanza",
-        marker_color=COLOR_LYON,
-        hovertemplate="<b>%{y}</b><br>Balanza: $%{x:,.0f}<extra></extra>",
-    ))
-    fig.add_trace(go.Bar(
-        x=g["Libro"], y=etiquetas, orientation="h", name="Libro de movimientos",
-        marker_color=COLOR_GASTOS_EMPRESA,
-        hovertemplate="<b>%{y}</b><br>Libro: $%{x:,.0f}<extra></extra>",
-    ))
-    fig.update_layout(
-        title=(
-            "<b>Balanza vs libro de movimientos, por cuenta mayor</b><br><sup>"
-            "Ordenado por el tamaño del hueco — la cifra para reclamarle a "
-            "Contabilidad</sup>"
-        ),
-        barmode="group", template="plotly_white",
-        height=max(320, 55 * len(g) + 140),
-        legend=dict(orientation="h", y=-0.12, x=0),
-        xaxis=dict(tickformat=_FMT_S, title="MXN"), yaxis=dict(title=""),
-        margin=dict(t=85, b=60, l=230, r=40),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-    )
-    return fig
-
-
 def plot_cobranza_mix(df_cfdi):
     """
     Cómo se cobra la facturación del año: a crédito (PPD) contra de contado
@@ -1328,6 +1415,202 @@ def plot_cobranza_mix(df_cfdi):
         legend=dict(orientation="h", y=-0.18, x=0),
         xaxis=dict(title=""), yaxis=dict(tickformat=_FMT_S, title="MXN"),
         margin=dict(t=85, b=60, l=70, r=40),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  RESULTADOS FINANCIEROS — la página del chairman
+# ══════════════════════════════════════════════════════════════════════════════
+def plot_cascada_mes(ingresos, gasto_por_cuenta, piso, techo, etiqueta_mes,
+                     sin_clasificar=0.0, top_n=6):
+    """
+    Cascada del mes: Ingresos confirmados → top-N cuentas de gasto (pasos
+    rojos) → "Otras cuentas" si sobra → "Sin clasificar" (ámbar, solo si > 0)
+    → Resultado.
+
+    El paso ámbar hace el rango piso/techo visible en la propia gráfica: la
+    barra justo ANTES de él es el *techo* (mejor caso, como si lo pendiente no
+    fuera gasto) y la cascada aterriza en el *piso* (peor caso, como si todo
+    lo pendiente sí lo fuera) — el rango deja de ser una nota al pie.
+
+    `go.Waterfall` solo pinta 3 colores (increasing/decreasing/totals), no uno
+    por barra, así que esta cascada se arma a mano con `go.Bar` + `base`
+    (la técnica estándar de "floating bars" para un waterfall con colores por
+    paso) — mismo lenguaje visual que `plot_waterfall_margen`, un trace más
+    flexible por la necesidad real de un cuarto color.
+
+    `gasto_por_cuenta`: {Cuenta_Nombre: monto} del mes, ya filtrado a
+    Naturaleza == Gasto operativo — nunca incluye lo sin clasificar, eso
+    entra aparte por `sin_clasificar`.
+    """
+    if ingresos is None or piso is None or techo is None:
+        return _figura_vacia("No hay suficientes fuentes para la cascada de este mes.")
+
+    items = sorted(
+        ((k, v) for k, v in gasto_por_cuenta.items() if v > 0),
+        key=lambda kv: kv[1], reverse=True,
+    )
+    top   = items[:top_n]
+    resto = sum(v for _, v in items[top_n:])
+
+    pasos = [("Ingresos", ingresos, "total")]
+    pasos += [(_trunc(k), -v, "gasto") for k, v in top]
+    if resto > 0:
+        pasos.append(("Otras cuentas", -resto, "gasto"))
+    if sin_clasificar > 0:
+        pasos.append(("Sin clasificar", -sin_clasificar, "sinclas"))
+    pasos.append(("Resultado", None, "total"))
+
+    labels, bases, alturas, colores, textos = [], [], [], [], []
+    acumulado = 0.0
+    for i, (nombre, delta, tipo) in enumerate(pasos):
+        if i == 0:
+            base, altura, acumulado = 0.0, ingresos, ingresos
+            color, texto = _GREEN, f"${ingresos/1e6:,.2f}M"
+        elif tipo == "total":
+            base, altura = min(0.0, acumulado), abs(acumulado)
+            color, texto = COLOR_LYON, f"${acumulado/1e6:,.2f}M"
+        else:
+            nuevo = acumulado + delta
+            base, altura = min(acumulado, nuevo), abs(delta)
+            acumulado = nuevo
+            color = _AMBER if tipo == "sinclas" else _RED
+            texto = f"-${abs(delta)/1e6:,.2f}M"
+        labels.append(nombre); bases.append(base); alturas.append(altura)
+        colores.append(color); textos.append(texto)
+
+    fig = go.Figure(go.Bar(
+        x=labels, y=alturas, base=bases,
+        marker=dict(color=colores, line=dict(color="white", width=1)),
+        text=textos, textposition="outside", cliponaxis=False,
+        hovertemplate="<b>%{x}</b><br>%{text}<extra></extra>",
+    ))
+    # Líneas punteadas de continuidad entre barras, mismo estilo que el
+    # connector de `plot_waterfall_margen` — sin ellas, las barras flotantes
+    # no se leen como cascada.
+    for i in range(len(labels) - 1):
+        y_conector = bases[i] + alturas[i] if colores[i] != _RED and colores[i] != _AMBER else bases[i]
+        fig.add_shape(
+            type="line", x0=i + 0.4, x1=i + 1 - 0.4, y0=y_conector, y1=y_conector,
+            line=dict(color="#E5E7EB", width=1, dash="dot"),
+        )
+
+    subt = f"Techo ${techo/1e6:,.2f}M · Piso ${piso/1e6:,.2f}M" if piso != techo else f"${techo/1e6:,.2f}M"
+    fig.update_layout(
+        title=(f"<b>Cómo nos fue en {etiqueta_mes}</b><br><sup>{subt}</sup>"),
+        template="plotly_white", height=440, showlegend=False,
+        yaxis=dict(tickformat="$,.0f", title="MXN"),
+        xaxis_title="",
+        margin=dict(t=90, b=60, l=60, r=40),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
+def plot_cascada_anual(resultado_por_mes, total_piso, total_techo):
+    """
+    Cascada del año: un paso por mes (su Resultado, lado piso del rango — el
+    caso conservador), cerrando en el acumulado del periodo. Verde si el mes
+    suma al acumulado, rojo si resta — gratis con `go.Waterfall`, que sí
+    alcanza aquí porque solo hacen falta los 3 colores de siempre.
+
+    `resultado_por_mes`: {pd.Period: float}, ya sobre meses comparables
+    (ingreso y gasto a la vez) — nunca mezcla un mes sin la otra fuente.
+    """
+    if not resultado_por_mes:
+        return _figura_vacia("No hay meses comparables para la cascada del año.")
+
+    meses  = sorted(resultado_por_mes)
+    deltas = [resultado_por_mes[m] for m in meses]
+    labels = [label_mes(m) for m in meses] + ["Total"]
+
+    values   = deltas + [0]
+    measures = ["relative"] * len(deltas) + ["total"]
+    textos   = (
+        [f"{'+' if d >= 0 else ''}${d/1e6:,.2f}M" for d in deltas]
+        + [f"${total_piso/1e6:,.2f}M"]
+    )
+
+    fig = go.Figure(go.Waterfall(
+        x=labels, y=values, measure=measures,
+        text=textos, textposition="outside", cliponaxis=False,
+        connector=dict(line=dict(color="#E5E7EB", width=1)),
+        increasing=dict(marker=dict(color=_GREEN)),
+        decreasing=dict(marker=dict(color=_RED)),
+        totals=dict(marker=dict(color=COLOR_LYON)),
+        hovertemplate="<b>%{x}</b><br>$%{y:,.0f} MXN<extra></extra>",
+    ))
+    subt = (
+        f"Acumulado: ${total_piso/1e6:,.2f}M – ${total_techo/1e6:,.2f}M"
+        if total_piso != total_techo else f"Acumulado: ${total_techo/1e6:,.2f}M"
+    )
+    fig.update_layout(
+        title=(f"<b>Cómo se ve el año</b><br><sup>{subt}</sup>"),
+        template="plotly_white", height=420, showlegend=False,
+        yaxis=dict(tickformat="$,.0f", title="MXN"),
+        xaxis_title="",
+        margin=dict(t=90, b=60, l=80, r=40),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
+def plot_gasto_por_cuenta_mes(df_cuenta_mes, top_n=6):
+    """
+    Evolución del gasto operativo por cuenta contable, mes a mes — barras
+    apiladas, top-N cuentas (por su total en la ventana) + "Otras cuentas" en
+    gris, `barmode="relative"` para tolerar algún mes con ajuste negativo.
+
+    `df_cuenta_mes`: DataFrame[Cuenta, Cuenta_Nombre, _Mes, Monto_MXN] — la
+    forma exacta que regresa `core.fuentes.gasto_contable_desglosado()["por_cuenta_y_mes"]`.
+    """
+    if df_cuenta_mes is None or len(df_cuenta_mes) == 0:
+        return _figura_vacia("Sin gasto operativo clasificado en el periodo.")
+
+    d = df_cuenta_mes[df_cuenta_mes["Monto_MXN"] != 0].copy()
+    if len(d) == 0:
+        return _figura_vacia("Sin gasto operativo clasificado en el periodo.")
+
+    ranking = (d.groupby("Cuenta_Nombre")["Monto_MXN"].sum()
+                 .sort_values(ascending=False))
+    top_cuentas = ranking.head(top_n).index.tolist()
+
+    meses = sorted(d["_Mes"].unique())
+    x = [label_mes(m) for m in meses]
+
+    fig = go.Figure()
+    for i, cta in enumerate(top_cuentas):
+        sub = d[d["Cuenta_Nombre"] == cta].set_index("_Mes")
+        y = [float(sub.loc[m, "Monto_MXN"]) if m in sub.index else 0.0 for m in meses]
+        fig.add_trace(go.Bar(
+            x=x, y=y, name=_trunc(cta, 28),
+            marker=dict(color=PALETA_PRINCIPAL[i % len(PALETA_PRINCIPAL)],
+                        line=dict(color="white", width=1)),
+            hovertemplate=f"<b>{cta}</b><br>%{{x}}: $%{{y:,.0f}} MXN<extra></extra>",
+        ))
+
+    otras = d[~d["Cuenta_Nombre"].isin(top_cuentas)]
+    if len(otras):
+        sub = otras.groupby("_Mes")["Monto_MXN"].sum()
+        y = [float(sub.get(m, 0.0)) for m in meses]
+        if any(v != 0 for v in y):
+            fig.add_trace(go.Bar(
+                x=x, y=y, name="Otras cuentas",
+                marker=dict(color="#9E9E9E", line=dict(color="white", width=1)),
+                hovertemplate="<b>Otras cuentas</b><br>%{x}: $%{y:,.0f} MXN<extra></extra>",
+            ))
+
+    fig.update_layout(
+        title=(
+            f"<b>Gasto operativo por cuenta contable</b>"
+            f"<br><sup>Top {min(top_n, len(ranking))} cuentas de la ventana + Otras</sup>"
+        ),
+        barmode="relative", template="plotly_white", height=460,
+        legend=dict(orientation="h", y=-0.22, x=0, font=dict(size=10)),
+        yaxis=dict(tickformat=_FMT_S, title="MXN"), xaxis_title="",
+        margin=dict(t=80, b=110, l=75, r=20),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
     )
     return fig

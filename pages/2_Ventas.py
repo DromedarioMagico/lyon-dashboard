@@ -1,5 +1,3 @@
-import datetime as dt
-
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -8,10 +6,11 @@ import streamlit as st
 from core.catalogos import COLOR_LYON, COLOR_VENTAS, label_mes
 from core.cruce_ventas import (
     cruzar_pedidos_facturas, descomponer_sin_factura, bucket_antiguedad,
-    FACTURADO, SIN_FACTURA, SIN_OC,
+    ventas_confirmadas, FACTURADO, SIN_FACTURA, SIN_OC,
 )
 from core.database import init_db
-from core.etl_ventas import cargar_ventas, aplicar_vendedores
+from core.etl_ventas import aplicar_vendedores
+from core.fuentes import kpi_card as _kpi, fmt_money
 from core.navigation import render_sidebar_search, render_sidebar_status, inject_custom_css, handle_pending_nav, breadcrumb, render_periodo_filter, parse_semana_x
 from core.plots import (
     plot_barras_temporales,
@@ -22,8 +21,7 @@ from core.plots import (
     plot_ventas_por_vendedor,
     plot_heatmap_cliente_mes,
     plot_embudo_facturacion,
-    plot_pedido_vs_facturado,
-    plot_cobranza_mix,
+    plot_tendencia_cliente,
 )
 
 st.set_page_config(
@@ -35,17 +33,6 @@ st.set_page_config(
 init_db()
 inject_custom_css()
 handle_pending_nav()
-
-# ── KPI card helper ───────────────────────────────────────────────────────────
-def _kpi(label, value, color):
-    return f"""
-    <div style="background:#fff;border:1px solid #E1E7EC;border-radius:10px;
-                padding:1rem 1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.05);">
-      <p style="margin:0 0 4px;font-size:.72rem;font-weight:600;color:#6B7280;
-                text-transform:uppercase;letter-spacing:.5px;">{label}</p>
-      <p style="margin:0;font-size:1.65rem;font-weight:700;color:{color};
-                line-height:1.2;">{value}</p>
-    </div>"""
 
 _BLUE  = COLOR_LYON
 _GREEN = COLOR_VENTAS
@@ -73,7 +60,7 @@ def _marcar_base(fig, base):
 
 # ── Vista de detalle inline ───────────────────────────────────────────────────
 def _render_detalle_cliente(df_ctx, cliente):
-    df = df_ctx[df_ctx["Cliente_Nombre"] == cliente].copy()
+    df = df_ctx[df_ctx["Cliente_Nombre"] == cliente].copy()  # Pedidos (SAE) de este cliente
     _disp = (df["Cliente_Display"].iloc[0] if len(df) > 0 else cliente)
     _bc   = _disp if len(_disp) <= 50 else _disp[:49] + "…"
     breadcrumb([
@@ -81,25 +68,26 @@ def _render_detalle_cliente(df_ctx, cliente):
         (_bc, None, None),
     ])
 
-    if len(df) == 0:
+    # Ventas confirmadas de este cliente (CFDI), en el mismo periodo que
+    # df_ctx — el eje principal de este drill-down ya es lo confirmado, no
+    # el pedido (un pedido no es una venta hasta que se factura).
+    _meses_ctx = set(df_ctx["_Mes"].unique()) if len(df_ctx) else set()
+    _ventas_cli = (
+        _ventas_cx[(_ventas_cx["Cliente_Nombre"] == cliente) & (_ventas_cx["_Mes"].isin(_meses_ctx))]
+        if _ventas_cx is not None else None
+    )
+    _hay_confirmado = _ventas_cli is not None and len(_ventas_cli) > 0
+
+    if len(df) == 0 and not _hay_confirmado:
         st.warning(
-            f"**{cliente}** no tiene pedidos en el periodo seleccionado. "
-            "Ajusta el filtro de período en el sidebar para verlo."
+            f"**{cliente}** no tiene pedidos ni ventas confirmadas en el periodo "
+            "seleccionado. Ajusta el filtro de período en el sidebar para verlo."
         )
         return
 
-    display_name  = df["Cliente_Display"].iloc[0]
-    venta_total   = df["Importe_MXN"].sum()
-    n_pedidos     = len(df)
-    tick_prom     = df["Importe_MXN"].mean()
-    tick_med      = df["Importe_MXN"].median()
-    fecha_min     = df["Fecha"].min()
-    fecha_max     = df["Fecha"].max()
-
-    vend_principal = (
-        df[df["Vendedor"] != "Sin asignar"]
-        .groupby("Vendedor")["Importe_MXN"].sum().idxmax()
-        if (df["Vendedor"] != "Sin asignar").any() else "Sin asignar"
+    display_name = (
+        _ventas_cli["Cliente_Display"].iloc[0] if _hay_confirmado
+        else (df["Cliente_Display"].iloc[0] if len(df) else cliente)
     )
 
     st.markdown(f"<h2 style='margin-bottom:6px'>{display_name}</h2>", unsafe_allow_html=True)
@@ -107,26 +95,59 @@ def _render_detalle_cliente(df_ctx, cliente):
         st.caption(cliente)
     st.markdown("<div style='margin-top:1rem'></div>", unsafe_allow_html=True)
 
+    # ── KPIs: ventas confirmadas — el eje principal ───────────────────────────
+    venta_confirmada = float(_ventas_cli["Importe_MXN"].sum()) if _hay_confirmado else None
+    n_facturas       = len(_ventas_cli) if _hay_confirmado else 0
+    tick_prom_c      = float(_ventas_cli["Importe_MXN"].mean())   if _hay_confirmado else None
+    tick_med_c       = float(_ventas_cli["Importe_MXN"].median()) if _hay_confirmado else None
+    vend_principal = (
+        df[df["Vendedor"] != "Sin asignar"]
+        .groupby("Vendedor")["Importe_MXN"].sum().idxmax()
+        if len(df) and (df["Vendedor"] != "Sin asignar").any() else "Sin asignar"
+    )
+
     k1, k2, k3, k4, k5 = st.columns(5)
-    k1.markdown(_kpi("Venta Total",    f"${venta_total/1e6:,.2f}M",                     _GREEN), unsafe_allow_html=True)
-    k2.markdown(_kpi("Pedidos",        f"{n_pedidos:,}",                                 _BLUE),  unsafe_allow_html=True)
-    k3.markdown(_kpi("Ticket Prom.",   f"${tick_prom:,.0f}",                             _GREEN), unsafe_allow_html=True)
-    k4.markdown(_kpi("Ticket Med.",    f"${tick_med:,.0f}",                              _GREEN), unsafe_allow_html=True)
-    k5.markdown(_kpi("Vendedor Ppal.", vend_principal,                                   _BLUE),  unsafe_allow_html=True)
+    k1.markdown(_kpi("Venta Confirmada", fmt_money(venta_confirmada), _GREEN), unsafe_allow_html=True)
+    k2.markdown(_kpi("Facturas", f"{n_facturas:,}" if n_facturas else "—", _BLUE), unsafe_allow_html=True)
+    k3.markdown(_kpi("Ticket Prom.", f"${tick_prom_c:,.0f}" if tick_prom_c is not None else "—", _GREEN), unsafe_allow_html=True)
+    k4.markdown(_kpi("Ticket Med.", f"${tick_med_c:,.0f}" if tick_med_c is not None else "—", _GREEN), unsafe_allow_html=True)
+    k5.markdown(_kpi("Vendedor Ppal.", vend_principal, _BLUE), unsafe_allow_html=True)
+
+    # ── Pedido vs Venta Confirmada — indicador breve ──────────────────────────
+    _pedido_total = float(df["Importe_MXN"].sum()) if len(df) else 0.0
+    _conv_txt = (
+        f" ({venta_confirmada/_pedido_total*100:.0f}% convertido)"
+        if (venta_confirmada is not None and _pedido_total) else ""
+    )
+    st.caption(
+        f"📋 Pedido (SAE): **${_pedido_total/1e6:,.2f}M** vs. Venta Confirmada "
+        f"(CFDI): **{fmt_money(venta_confirmada)}**{_conv_txt}"
+    )
 
     st.divider()
 
-    # Ventas mensuales (agregación anual automática si el periodo es largo)
-    with st.container(border=True):
-        st.plotly_chart(
-            _marcar_base(plot_barras_temporales(
-                df, "Importe_MXN", f"Ventas Mensuales — {display_name}", COLOR_VENTAS
-            ), vta_base),
-            use_container_width=True,
-        )
+    # ── Tendencia mensual: este cliente contra el resto ───────────────────────
+    if _ventas_cx is not None and len(_ventas_cx):
+        with st.container(border=True):
+            st.plotly_chart(
+                _marcar_base(
+                    plot_tendencia_cliente(_ventas_cx, cliente, display_name), vta_base,
+                ),
+                use_container_width=True,
+            )
+    elif len(df):
+        with st.container(border=True):
+            st.caption("Sin CFDI cargado — tendencia sobre pedidos (SAE), no ventas confirmadas.")
+            st.plotly_chart(
+                _marcar_base(plot_barras_temporales(
+                    df, "Importe_MXN", f"Pedidos Mensuales — {display_name}", COLOR_VENTAS
+                ), vta_base),
+                use_container_width=True,
+            )
 
-    # Desglose por vendedor (solo si hay más de uno)
-    if df["Vendedor"].nunique() > 1:
+    # Desglose por vendedor (solo si hay más de uno) — base PEDIDOS: el CFDI no
+    # distingue vendedor por documento, solo por el mapa cliente→vendedor.
+    if len(df) and df["Vendedor"].nunique() > 1:
         with st.container(border=True):
             vv = (df.groupby("Vendedor")
                     .agg(Ventas=("Importe_MXN", "sum"), Pedidos=("Importe_MXN", "count"))
@@ -150,28 +171,30 @@ def _render_detalle_cliente(df_ctx, cliente):
             fig2.update_yaxes(tickformat=",.0f", tickprefix="$")
             st.plotly_chart(_marcar_base(fig2, vta_base), use_container_width=True)
 
-    # Tabla completa de pedidos
-    with st.container(border=True):
-        st.markdown("##### Todos los Pedidos")
-        tbl = df[["Clave", "Fecha", "Vendedor", "Importe_MXN", "Estatus"]].copy()
-        tbl["Fecha"] = tbl["Fecha"].dt.strftime("%d-%b-%Y")
-        tbl = tbl.sort_values("Importe_MXN", ascending=False).reset_index(drop=True)
-        tbl.index = tbl.index + 1
-        st.dataframe(
-            tbl, use_container_width=True, hide_index=False,
-            column_config={
-                "Clave":       st.column_config.TextColumn("Clave"),
-                "Fecha":       st.column_config.TextColumn("Fecha"),
-                "Vendedor":    st.column_config.TextColumn("Vendedor"),
-                "Importe_MXN": st.column_config.NumberColumn("Importe (MXN)", format="$%,.2f"),
-                "Estatus":     st.column_config.TextColumn("Estatus"),
-            },
-            height=min(600, 48 + 36 * len(tbl)),
-        )
+    # Tabla completa de pedidos (base SAE — es detalle operativo, no venta)
+    if len(df):
+        with st.container(border=True):
+            st.markdown("##### Todos los Pedidos")
+            st.caption("Base: pedidos (SAE).")
+            tbl = df[["Clave", "Fecha", "Vendedor", "Importe_MXN", "Estatus"]].copy()
+            tbl["Fecha"] = tbl["Fecha"].dt.strftime("%d-%b-%Y")
+            tbl = tbl.sort_values("Importe_MXN", ascending=False).reset_index(drop=True)
+            tbl.index = tbl.index + 1
+            st.dataframe(
+                tbl, use_container_width=True, hide_index=False,
+                column_config={
+                    "Clave":       st.column_config.TextColumn("Clave"),
+                    "Fecha":       st.column_config.TextColumn("Fecha"),
+                    "Vendedor":    st.column_config.TextColumn("Vendedor"),
+                    "Importe_MXN": st.column_config.NumberColumn("Importe (MXN)", format="$%,.2f"),
+                    "Estatus":     st.column_config.TextColumn("Estatus"),
+                },
+                height=min(600, 48 + 36 * len(tbl)),
+            )
 
     # ── El ciclo de este cliente (condicional al reporte CFDI) ────────────────
     if _pedidos_cx is not None:
-        _meses_ctx_c = set(df["_Mes"].unique())
+        _meses_ctx_c = _meses_ctx
         _ped_cli = _pedidos_cx[
             (_pedidos_cx["Cliente_Nombre"] == cliente) & (_pedidos_cx["_Mes"].isin(_meses_ctx_c))
         ]
@@ -225,48 +248,72 @@ def _render_detalle_vendedor(df_ctx, vendedor):
         (_bc_v, None, None),
     ])
 
-    df = df_ctx[df_ctx["Vendedor"] == vendedor].copy()
-    if len(df) == 0:
+    df = df_ctx[df_ctx["Vendedor"] == vendedor].copy()  # Pedidos (SAE) de este vendedor
+
+    # Su cartera medida en confirmado (CFDI) — el Vendedor de `_ventas_cx` ya
+    # viene del mapa cliente→vendedor de los pedidos resueltos, así que un
+    # vendedor agrupa exactamente los mismos clientes de los dos lados.
+    _meses_ctx = set(df_ctx["_Mes"].unique()) if len(df_ctx) else set()
+    _ventas_vend = (
+        _ventas_cx[(_ventas_cx["Vendedor"] == vendedor) & (_ventas_cx["_Mes"].isin(_meses_ctx))]
+        if _ventas_cx is not None else None
+    )
+    _hay_confirmado_v = _ventas_vend is not None and len(_ventas_vend) > 0
+
+    if len(df) == 0 and not _hay_confirmado_v:
         st.warning(
-            f"**{vendedor}** no tiene pedidos en el periodo seleccionado. "
-            "Ajusta el filtro de período en el sidebar para verlo."
+            f"**{vendedor}** no tiene pedidos ni ventas confirmadas en el "
+            "periodo seleccionado. Ajusta el filtro de período en el sidebar "
+            "para verlo."
         )
         return
 
-    # ── Métricas individuales ──────────────────────────────────────────────────
-    venta_total   = df["Importe_MXN"].sum()
+    # ── Métricas: ventas confirmadas (volumen) ────────────────────────────────
+    venta_confirmada_v = float(_ventas_vend["Importe_MXN"].sum()) if _hay_confirmado_v else None
+    n_facturas_v        = len(_ventas_vend) if _hay_confirmado_v else 0
+    tick_prom_v          = float(_ventas_vend["Importe_MXN"].mean()) if _hay_confirmado_v else None
+    clientes_uniq_v = (
+        _ventas_vend["Cliente_Nombre"].nunique() if _hay_confirmado_v
+        else (df["Cliente_Nombre"].nunique() if len(df) else 0)
+    )
+
+    # ── Métricas: SAE de pedidos (comisiones y cumplimiento no están en el CFDI) ──
     n_pedidos     = len(df)
-    tick_prom     = df["Importe_MXN"].mean()
-    comisiones    = df["Comision_MXN"].sum()
-    clientes_uniq = df["Cliente_Nombre"].nunique()
-    comis_pp      = comisiones / n_pedidos if n_pedidos > 0 else 0
-    tasa_cumpl    = (df["Estatus"] == "Remitido").mean() * 100
-    top_cli_monto = df.groupby("Cliente_Nombre")["Importe_MXN"].sum().max() if venta_total > 0 else 0
-    concentracion = top_cli_monto / venta_total * 100 if venta_total > 0 else 0
+    venta_pedidos = float(df["Importe_MXN"].sum()) if len(df) else 0.0
+    comisiones    = float(df["Comision_MXN"].sum()) if len(df) else 0.0
+    comis_pp      = comisiones / n_pedidos if n_pedidos > 0 else 0.0
+    tasa_cumpl    = float((df["Estatus"] == "Remitido").mean() * 100) if len(df) else None
+    top_cli_monto = (
+        df.groupby("Cliente_Nombre")["Importe_MXN"].sum().max() if len(df) else 0
+    )
+    concentracion = (
+        top_cli_monto / venta_pedidos * 100 if venta_pedidos > 0 else None
+    )
 
     st.markdown(f"<h2 style='margin-bottom:6px'>Vendedor: {vendedor}</h2>",
                 unsafe_allow_html=True)
     st.markdown("<div style='margin-top:1rem'></div>", unsafe_allow_html=True)
 
-    # Fila 1 — volumen
+    # Fila 1 — volumen, ventas confirmadas (Reporte de Ventas 2026)
+    st.caption("Ventas confirmadas (Reporte de Ventas 2026).")
     k1, k2, k3, k4 = st.columns(4)
-    k1.markdown(_kpi("Venta Total",    f"${venta_total/1e6:,.2f}M", _GREEN), unsafe_allow_html=True)
-    k2.markdown(_kpi("Pedidos",        f"{n_pedidos:,}",             _BLUE),  unsafe_allow_html=True)
-    k3.markdown(_kpi("Ticket Prom.",   f"${tick_prom:,.0f}",         _GREEN), unsafe_allow_html=True)
-    k4.markdown(_kpi("Comisiones",     f"${comisiones:,.0f}",        _GREEN), unsafe_allow_html=True)
+    k1.markdown(_kpi("Venta Confirmada", fmt_money(venta_confirmada_v), _GREEN), unsafe_allow_html=True)
+    k2.markdown(_kpi("Facturas", f"{n_facturas_v:,}" if n_facturas_v else "—", _BLUE), unsafe_allow_html=True)
+    k3.markdown(_kpi("Ticket Prom.", f"${tick_prom_v:,.0f}" if tick_prom_v is not None else "—", _GREEN), unsafe_allow_html=True)
+    k4.markdown(_kpi("Clientes Únicos", f"{clientes_uniq_v:,}", _BLUE), unsafe_allow_html=True)
 
     st.markdown("<div style='margin-top:.75rem'></div>", unsafe_allow_html=True)
 
-    # Fila 2 — calidad
+    # Fila 2 — comisiones y cumplimiento, del SAE de pedidos (el CFDI no los trae)
+    st.caption("Comisiones y cumplimiento — del SAE de pedidos.")
     k5, k6, k7, k8 = st.columns(4)
-    k5.markdown(_kpi("Comisión / Pedido",  f"${comis_pp:,.0f}",      _GREEN), unsafe_allow_html=True)
-    k6.markdown(_kpi("Clientes Únicos",    f"{clientes_uniq:,}",      _BLUE),  unsafe_allow_html=True)
-    k7.markdown(_kpi("Concentración",      f"{concentracion:.1f}%",   _BLUE),  unsafe_allow_html=True)
-    k8.markdown(_kpi("Tasa Cumplimiento",  f"{tasa_cumpl:.1f}%",      _BLUE),  unsafe_allow_html=True)
+    k5.markdown(_kpi("Comisiones",         f"${comisiones:,.0f}",       _GREEN), unsafe_allow_html=True)
+    k6.markdown(_kpi("Comisión / Pedido",  f"${comis_pp:,.0f}",         _GREEN), unsafe_allow_html=True)
+    k7.markdown(_kpi("Concentración",      f"{concentracion:.1f}%" if concentracion is not None else "—", _BLUE), unsafe_allow_html=True)
+    k8.markdown(_kpi("Tasa Cumplimiento",  f"{tasa_cumpl:.1f}%" if tasa_cumpl is not None else "—", _BLUE), unsafe_allow_html=True)
 
     # Fila 3 — el ciclo (condicional al reporte CFDI)
     if _pedidos_cx is not None:
-        _meses_ctx = set(df["_Mes"].unique())
         _ped_vend = _pedidos_cx[
             (_pedidos_cx["Vendedor"] == vendedor) & (_pedidos_cx["_Mes"].isin(_meses_ctx))
         ]
@@ -306,69 +353,92 @@ def _render_detalle_vendedor(df_ctx, vendedor):
 
     st.divider()
 
-    # ── Ventas mensuales (agregación anual automática si el periodo es largo) ──
-    with st.container(border=True):
-        st.plotly_chart(
-            _marcar_base(plot_barras_temporales(
-                df, "Importe_MXN", f"Ventas Mensuales — {vendedor}", COLOR_VENTAS
-            ), vta_base),
-            use_container_width=True,
+    # ── Ventas mensuales — confirmadas (CFDI) cuando hay reporte cargado ───────
+    if _hay_confirmado_v:
+        with st.container(border=True):
+            st.plotly_chart(
+                _marcar_base(plot_barras_temporales(
+                    _ventas_vend, "Importe_MXN", f"Ventas Confirmadas Mensuales — {vendedor}", COLOR_VENTAS
+                ), vta_base),
+                use_container_width=True,
+            )
+    elif len(df):
+        with st.container(border=True):
+            st.caption("Sin CFDI cargado — mensual sobre pedidos (SAE), no ventas confirmadas.")
+            st.plotly_chart(
+                _marcar_base(plot_barras_temporales(
+                    df, "Importe_MXN", f"Pedidos Mensuales — {vendedor}", COLOR_VENTAS
+                ), vta_base),
+                use_container_width=True,
+            )
+
+    # ── Top clientes de este vendedor — confirmadas (CFDI) cuando hay reporte ──
+    _top_base = _ventas_vend if _hay_confirmado_v else df
+    _top_total = venta_confirmada_v if _hay_confirmado_v else float(df["Importe_MXN"].sum())
+    if len(_top_base):
+        n2d = (_top_base.drop_duplicates("Cliente_Nombre")
+                 .set_index("Cliente_Nombre")["Cliente_Display"].to_dict())
+        top_cli = (_top_base.groupby("Cliente_Nombre", as_index=False)["Importe_MXN"].sum()
+                     .sort_values("Importe_MXN", ascending=False).head(10))
+        top_cli["Display"] = top_cli["Cliente_Nombre"].apply(lambda c: n2d.get(c, c))
+        pct_top = top_cli["Importe_MXN"].sum() / _top_total * 100 if _top_total else 0.0
+        _top_subtitulo = (
+            "Concentran el {:.1f}% de sus ventas confirmadas".format(pct_top) if _hay_confirmado_v
+            else "Concentran el {:.1f}% de sus pedidos (SAE)".format(pct_top)
         )
 
-    # ── Top clientes de este vendedor ──────────────────────────────────────────
-    n2d = (df.drop_duplicates("Cliente_Nombre")
-             .set_index("Cliente_Nombre")["Cliente_Display"].to_dict())
-    top_cli = (df.groupby("Cliente_Nombre", as_index=False)["Importe_MXN"].sum()
-                 .sort_values("Importe_MXN", ascending=False).head(10))
-    top_cli["Display"] = top_cli["Cliente_Nombre"].apply(lambda c: n2d.get(c, c))
-    pct_top = top_cli["Importe_MXN"].sum() / venta_total * 100
+        with st.container(border=True):
+            fig3 = px.bar(
+                top_cli.sort_values("Importe_MXN", ascending=True),
+                x="Importe_MXN", y="Display", orientation="h",
+                title=(f"<b>Top 10 Clientes — {vendedor}</b>"
+                       f"<br><sup>{_top_subtitulo}</sup>"),
+                color_discrete_sequence=[COLOR_LYON], text="Importe_MXN",
+            )
+            fig3.update_traces(
+                texttemplate="$%{text:,.0f}", textposition="outside",
+                customdata=top_cli.sort_values("Importe_MXN", ascending=True)["Cliente_Nombre"].values,
+                hovertemplate="<b>%{customdata}</b><br>$%{x:,.0f} MXN<extra></extra>",
+            )
+            fig3.update_layout(
+                template="plotly_white", height=460, showlegend=False,
+                xaxis_title="Ventas (MXN)", yaxis_title="",
+                margin=dict(t=100, b=60, l=200, r=130),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            )
+            fig3.update_xaxes(tickformat=",.0f", tickprefix="$")
+            st.plotly_chart(_marcar_base(fig3, vta_base), use_container_width=True)
 
-    with st.container(border=True):
-        fig3 = px.bar(
-            top_cli.sort_values("Importe_MXN", ascending=True),
-            x="Importe_MXN", y="Display", orientation="h",
-            title=(f"<b>Top 10 Clientes — {vendedor}</b>"
-                   f"<br><sup>Concentran el {pct_top:.1f}% de sus ventas</sup>"),
-            color_discrete_sequence=[COLOR_LYON], text="Importe_MXN",
-        )
-        fig3.update_traces(
-            texttemplate="$%{text:,.0f}", textposition="outside",
-            customdata=top_cli.sort_values("Importe_MXN", ascending=True)["Cliente_Nombre"].values,
-            hovertemplate="<b>%{customdata}</b><br>$%{x:,.0f} MXN<extra></extra>",
-        )
-        fig3.update_layout(
-            template="plotly_white", height=460, showlegend=False,
-            xaxis_title="Ventas (MXN)", yaxis_title="",
-            margin=dict(t=100, b=60, l=200, r=130),
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        )
-        fig3.update_xaxes(tickformat=",.0f", tickprefix="$")
-        st.plotly_chart(_marcar_base(fig3, vta_base), use_container_width=True)
-
-    # ── Tabla completa de pedidos ──────────────────────────────────────────────
-    with st.container(border=True):
-        st.markdown("##### Todos los Pedidos")
-        tbl = df[["Clave", "Fecha", "Cliente_Nombre", "Importe_MXN", "Estatus"]].copy()
-        tbl["Fecha"] = tbl["Fecha"].dt.strftime("%d-%b-%Y")
-        tbl = tbl.sort_values("Importe_MXN", ascending=False).reset_index(drop=True)
-        tbl.index = tbl.index + 1
-        st.dataframe(
-            tbl, use_container_width=True, hide_index=False,
-            column_config={
-                "Clave":          st.column_config.TextColumn("Clave"),
-                "Fecha":          st.column_config.TextColumn("Fecha"),
-                "Cliente_Nombre": st.column_config.TextColumn("Cliente"),
-                "Importe_MXN":    st.column_config.NumberColumn("Importe (MXN)", format="$%,.2f"),
-                "Estatus":        st.column_config.TextColumn("Estatus"),
-            },
-            height=min(600, 48 + 36 * len(tbl)),
-        )
+    # ── Tabla completa de pedidos (base SAE — es detalle operativo) ───────────
+    if len(df):
+        with st.container(border=True):
+            st.markdown("##### Todos los Pedidos")
+            st.caption("Base: pedidos (SAE).")
+            tbl = df[["Clave", "Fecha", "Cliente_Nombre", "Importe_MXN", "Estatus"]].copy()
+            tbl["Fecha"] = tbl["Fecha"].dt.strftime("%d-%b-%Y")
+            tbl = tbl.sort_values("Importe_MXN", ascending=False).reset_index(drop=True)
+            tbl.index = tbl.index + 1
+            st.dataframe(
+                tbl, use_container_width=True, hide_index=False,
+                column_config={
+                    "Clave":          st.column_config.TextColumn("Clave"),
+                    "Fecha":          st.column_config.TextColumn("Fecha"),
+                    "Cliente_Nombre": st.column_config.TextColumn("Cliente"),
+                    "Importe_MXN":    st.column_config.NumberColumn("Importe (MXN)", format="$%,.2f"),
+                    "Estatus":        st.column_config.TextColumn("Estatus"),
+                },
+                height=min(600, 48 + 36 * len(tbl)),
+            )
 
     # ══════════════════════════════════════════════════════════════════════════
     #  COMPARATIVA CON EL EQUIPO
     # ══════════════════════════════════════════════════════════════════════════
     st.divider()
     st.markdown("#### ⚔️ Comparativa con el equipo")
+    st.caption(
+        "Base: pedidos (SAE) — cumplimiento y comisión por pedido no tienen "
+        "equivalente en el reporte CFDI."
+    )
 
     real_df = df_ctx[df_ctx["Vendedor"] != "Sin asignar"]
     team = (real_df.groupby("Vendedor")
@@ -505,37 +575,29 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ── Upload ────────────────────────────────────────────────────────────────────
+# ── Gate: sin Ventas no hay nada que mostrar aquí ─────────────────────────────
 if "df_ventas" not in st.session_state:
-    st.markdown("Sube el archivo SAE de pedidos para ver el dashboard.")
-    uploaded = st.file_uploader(
-        "Archivo SAE de Ventas",
-        type=["xlsx", "xlsm", "xls"],
-        label_visibility="collapsed",
+    st.info(
+        "Todavía no has cargado el archivo SAE de Ventas (pedidos) en esta sesión. "
+        "Súbelo en **Carga de Archivos**."
     )
-    if uploaded:
-        with st.spinner("Procesando archivo…"):
-            try:
-                df, warns = cargar_ventas(uploaded)
-                st.session_state.df_ventas = df
-                st.session_state.df_ventas_meta = {
-                    "archivo":     uploaded.name,
-                    "uploaded_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "total_rows":  len(df),
-                }
-                for w in warns:
-                    st.warning(w)
-                st.success(f"✅ {len(df):,} pedidos cargados.")
-                st.rerun()
-            except ValueError as e:
-                st.error(f"Error al procesar el archivo:\n\n{e}")
+    if st.button("Ir a Carga de Archivos", type="primary"):
+        st.switch_page("app.py")
     st.stop()
 
 # ──────────────────────────────────────────────────────────────────────────────
 #  Drill-down de semana — Ventas
 # ──────────────────────────────────────────────────────────────────────────────
-def _render_detalle_semana_ventas(df_full, df, semana_str):
-    """Week-level drill-down for ventas: clients, sellers, and orders for a specific week."""
+def _render_detalle_semana_ventas(df_ped_ctx, df_conf_ctx, semana_str):
+    """
+    Drill-down de la semana: clientes, vendedores y documentos.
+
+    La curva semanal de la que se abre este detalle ya mide ventas confirmadas
+    (CFDI) — este detalle debe medir lo mismo para no contradecirla. Cuando no
+    hay facturas confirmadas para la semana (o no hay CFDI cargado) se cae a
+    pedidos (SAE) con una leyenda explícita, igual que los otros dos
+    drill-downs de esta página.
+    """
     # ── Parsear fechas (también para el label del breadcrumb) ────────────────
     week_label = parse_semana_x(semana_str)
     if week_label is not None:
@@ -555,22 +617,43 @@ def _render_detalle_semana_ventas(df_full, df, semana_str):
         st.error("No se pudo interpretar la semana. Haz clic nuevamente en la gráfica.")
         return
 
-    df_semana = df[
-        (df["Fecha"].dt.normalize() >= week_start) &
-        (df["Fecha"].dt.normalize() <= week_end)
+    _conf_semana = None
+    if df_conf_ctx is not None:
+        _conf_semana = df_conf_ctx[
+            (df_conf_ctx["Fecha"].dt.normalize() >= week_start) &
+            (df_conf_ctx["Fecha"].dt.normalize() <= week_end)
+        ].copy()
+    _hay_confirmado_sem = _conf_semana is not None and len(_conf_semana) > 0
+
+    _ped_semana = df_ped_ctx[
+        (df_ped_ctx["Fecha"].dt.normalize() >= week_start) &
+        (df_ped_ctx["Fecha"].dt.normalize() <= week_end)
     ].copy()
 
-    if len(df_semana) == 0:
+    if not _hay_confirmado_sem and len(_ped_semana) == 0:
         st.warning(
-            f"No hay pedidos para la semana del "
+            f"No hay ventas confirmadas ni pedidos para la semana del "
             f"{week_start.strftime('%d %b')} al {week_end.strftime('%d %b %Y')} "
             "en el periodo filtrado."
         )
         return
 
+    _es_confirmado = _hay_confirmado_sem
+    df_semana = _conf_semana if _es_confirmado else _ped_semana
+    _col_doc   = "Folio" if _es_confirmado else "Clave"
+    _label_doc = "Factura" if _es_confirmado else "Pedido"
+    _unidad_pl = "facturas" if _es_confirmado else "pedidos"
+
+    if not _es_confirmado:
+        st.caption(
+            "Sin facturas confirmadas esta semana — detalle sobre pedidos (SAE)."
+            if df_conf_ctx is not None else
+            "Sin CFDI cargado — detalle sobre pedidos (SAE), no ventas confirmadas."
+        )
+
     # ── Header ───────────────────────────────────────────────────────────────
     venta_sem    = df_semana["Importe_MXN"].sum()
-    n_pedidos    = len(df_semana)
+    n_docs       = len(df_semana)
     n_clientes   = df_semana["Cliente_Nombre"].nunique()
     n_vendedores = df_semana[df_semana["Vendedor"] != "Sin asignar"]["Vendedor"].nunique()
 
@@ -582,19 +665,22 @@ def _render_detalle_semana_ventas(df_full, df, semana_str):
     )
     st.markdown(
         f"<p style='margin:0 0 1rem;color:#6B7280;font-size:.85rem'>"
-        f"{n_pedidos} pedidos &nbsp;·&nbsp; {n_clientes} clientes "
+        f"{n_docs} {_unidad_pl} &nbsp;·&nbsp; {n_clientes} clientes "
         f"&nbsp;·&nbsp; {n_vendedores} vendedores</p>",
         unsafe_allow_html=True,
     )
 
     # ── KPIs ─────────────────────────────────────────────────────────────────
+    _fuente_prior = df_conf_ctx if _es_confirmado else df_ped_ctx
     prior_start = week_start - pd.Timedelta(weeks=1)
     prior_end   = week_end   - pd.Timedelta(weeks=1)
-    df_prior    = df[
-        (df["Fecha"].dt.normalize() >= prior_start) &
-        (df["Fecha"].dt.normalize() <= prior_end)
-    ]
-    venta_prior = df_prior["Importe_MXN"].sum() if len(df_prior) > 0 else None
+    df_prior    = (
+        _fuente_prior[
+            (_fuente_prior["Fecha"].dt.normalize() >= prior_start) &
+            (_fuente_prior["Fecha"].dt.normalize() <= prior_end)
+        ] if _fuente_prior is not None else None
+    )
+    venta_prior = df_prior["Importe_MXN"].sum() if (df_prior is not None and len(df_prior) > 0) else None
 
     var_str   = "—"
     var_color = _BLUE
@@ -609,16 +695,18 @@ def _render_detalle_semana_ventas(df_full, df, semana_str):
     top_cli_pct   = float(cli_shares_sem.iloc[0]) / venta_sem * 100 if (len(cli_shares_sem) > 0 and venta_sem > 0) else 0
     top_cli_color = _GREEN if top_cli_pct < 40 else ("#E97132" if top_cli_pct < 60 else "#C00000")
 
-    completado_mxn = df_semana[df_semana["Estatus"] == "Remitido"]["Importe_MXN"].sum()
-    pct_completado = completado_mxn / venta_sem * 100 if venta_sem > 0 else 0
-    compl_color    = _GREEN if pct_completado >= 90 else ("#E97132" if pct_completado >= 70 else "#C00000")
-    compl_str      = f"{pct_completado:.0f}% (${completado_mxn/1e6:,.2f}M)"
-
     k1, k2, k3, k4 = st.columns(4)
     k1.markdown(_kpi("Venta Semana",        f"${venta_sem/1e6:,.2f}M",       _GREEN),       unsafe_allow_html=True)
     k2.markdown(_kpi("vs. Semana Anterior", var_str,                          var_color),    unsafe_allow_html=True)
     k3.markdown(_kpi("Cliente Top",         f"{top_cli_pct:.0f}% del total",  top_cli_color), unsafe_allow_html=True)
-    k4.markdown(_kpi("Remitido",            compl_str,                        compl_color),  unsafe_allow_html=True)
+    if _es_confirmado:
+        k4.markdown(_kpi("Facturas", f"{n_docs:,}", _BLUE), unsafe_allow_html=True)
+    else:
+        completado_mxn = df_semana[df_semana["Estatus"] == "Remitido"]["Importe_MXN"].sum()
+        pct_completado = completado_mxn / venta_sem * 100 if venta_sem > 0 else 0
+        compl_color    = _GREEN if pct_completado >= 90 else ("#E97132" if pct_completado >= 70 else "#C00000")
+        compl_str      = f"{pct_completado:.0f}% (${completado_mxn/1e6:,.2f}M)"
+        k4.markdown(_kpi("Remitido", compl_str, compl_color), unsafe_allow_html=True)
 
     st.divider()
 
@@ -749,21 +837,24 @@ def _render_detalle_semana_ventas(df_full, df, semana_str):
                     st.toast(f"Cargando vendedor **{vend_full[:40]}**…", icon="⏳")
                     st.rerun()
     else:
-        st.info("No hay pedidos con vendedor asignado esta semana.")
+        st.info(f"No hay {_unidad_pl} con vendedor asignado esta semana.")
 
     st.divider()
 
-    # ── Tabla de Pedidos ──────────────────────────────────────────────────────
-    st.markdown("### Detalle de Pedidos")
-    st.caption("Todos los pedidos de la semana. Selecciona una fila para navegar al cliente o vendedor.")
+    # ── Tabla de documentos (facturas confirmadas o, en su defecto, pedidos) ──
+    st.markdown(f"### Detalle de {'Facturas' if _es_confirmado else 'Pedidos'}")
+    st.caption(
+        f"{'Todas las facturas confirmadas' if _es_confirmado else 'Todos los pedidos'} "
+        "de la semana. Selecciona una fila para navegar al cliente o vendedor."
+    )
 
-    tbl_sem_v = df_semana[["Fecha", "Cliente_Display", "Vendedor", "Clave", "Importe_MXN", "Estatus"]].copy()
+    tbl_sem_v = df_semana[["Fecha", "Cliente_Display", "Vendedor", _col_doc, "Importe_MXN"]].copy()
     tbl_sem_v["% Semana"]    = tbl_sem_v["Importe_MXN"] / venta_sem * 100
     tbl_sem_v["Fecha_str"]   = tbl_sem_v["Fecha"].dt.strftime("%d-%b-%Y")
     tbl_sem_v["_cli_nombre"] = df_semana["Cliente_Nombre"].values
     tbl_sem_v = tbl_sem_v.sort_values("Importe_MXN", ascending=False).reset_index(drop=True)
 
-    tbl_display_v = tbl_sem_v[["Fecha_str", "Cliente_Display", "Vendedor", "Clave", "Importe_MXN", "% Semana"]].copy()
+    tbl_display_v = tbl_sem_v[["Fecha_str", "Cliente_Display", "Vendedor", _col_doc, "Importe_MXN", "% Semana"]].copy()
 
     tbl_v_event = st.dataframe(
         tbl_display_v,
@@ -776,7 +867,7 @@ def _render_detalle_semana_ventas(df_full, df, semana_str):
             "Fecha_str":       st.column_config.TextColumn("Fecha"),
             "Cliente_Display": st.column_config.TextColumn("Cliente"),
             "Vendedor":        st.column_config.TextColumn("Vendedor"),
-            "Clave":           st.column_config.TextColumn("Pedido"),
+            _col_doc:          st.column_config.TextColumn(_label_doc),
             "Importe_MXN":     st.column_config.NumberColumn("Importe (MXN)", format="$%,.2f"),
             "% Semana":        st.column_config.NumberColumn("% Semana",      format="%.1f%%"),
         },
@@ -836,11 +927,6 @@ with st.sidebar:
              "cruce pedido↔factura.",
     )
 
-    st.markdown("---")
-    if st.button("🗑 Borrar datos y volver a subir", use_container_width=True):
-        for key in ("df_ventas", "df_ventas_meta"):
-            st.session_state.pop(key, None)
-        st.rerun()
 
 # El SAE trae ambas bases (Importe_MXN con IVA, Subtotal_MXN sin). Se alias
 # UNA sola vez, aquí: todo lo que ya existía en esta página sigue leyendo
@@ -868,6 +954,20 @@ if _df_cfdi_raw is not None:
 else:
     _pedidos_cx = _facturas_cx = _resumen_cx = None
 
+# ── Ventas confirmadas: el enfoque principal de la página desde aquí ─────────
+# De "Distribución de Ventas por Cliente" para abajo, la fuente deja de ser el
+# pedido y pasa a ser lo que el Reporte de Ventas 2026 confirma como facturado
+# — un pedido no es una venta hasta que se factura. `ventas_confirmadas()`
+# hace que el CFDI tenga la misma forma que `df_full` (mismas columnas) para
+# que las gráficas ya validadas lo reciban sin tocar una sola. Respeta el
+# switch de IVA igual que arriba: Sin IVA alias Importe_MXN -> Subtotal_MXN.
+if _df_cfdi_raw is not None:
+    _ventas_cx = ventas_confirmadas(df_full, _facturas_vigentes)
+    if vta_base == "Sin IVA":
+        _ventas_cx = _ventas_cx.assign(Importe_MXN=_ventas_cx["Subtotal_MXN"])
+else:
+    _ventas_cx = None
+
 # ── Modo drill-down (respetan el filtro de período vía _ctx_v) ────────────────
 if st.session_state.get("drill_cliente"):
     _render_detalle_cliente(_ctx_v, st.session_state["drill_cliente"])
@@ -878,7 +978,14 @@ if st.session_state.get("drill_vendedor"):
     st.stop()
 
 if st.session_state.get("drill_semana_v"):
-    _render_detalle_semana_ventas(df_full, _ctx_v, st.session_state["drill_semana_v"])
+    # Mismo recorte de meses que ve la curva semanal de la que se abre este
+    # detalle (`dfc`, más abajo) — para que el drill-down nunca muestre una
+    # semana que la curva no mostró.
+    _dfc_semana_ctx = (
+        _ventas_cx[_ventas_cx["_Mes"].isin(meses_sel)] if (meses_sel and _ventas_cx is not None)
+        else _ventas_cx
+    )
+    _render_detalle_semana_ventas(_ctx_v, _dfc_semana_ctx, st.session_state["drill_semana_v"])
     st.stop()
 
 if not meses_sel:
@@ -892,10 +999,11 @@ if len(df) == 0:
     st.stop()
 
 # ── KPIs ──────────────────────────────────────────────────────────────────────
+# Esta base es PEDIDOS del SAE — lo que se capturó al recibir la orden, antes
+# de facturar. Un pedido no es una venta hasta que se factura; eso solo lo
+# sabemos con lo confirmado en el Reporte de Ventas 2026 (ver más abajo).
 venta_total      = df["Importe_MXN"].sum()
 total_pedidos    = len(df)
-ticket_promedio  = df["Importe_MXN"].mean()
-ticket_mediano   = df["Importe_MXN"].median()
 clientes_unicos  = df["Cliente_Nombre"].nunique()
 vendedores_act   = df[df["Vendedor"] != "Sin asignar"]["Vendedor"].nunique()
 
@@ -903,13 +1011,16 @@ ventas_ranking = df.groupby("Cliente_Nombre")["Importe_MXN"].sum().sort_values(a
 acum_pct = ventas_ranking.cumsum() / venta_total * 100
 n_clientes_80pct = int((acum_pct <= 80).sum()) + 1 if len(acum_pct) > 0 else 0
 
-k1, k2, k3, k4, k5, k6 = st.columns(6)
+st.caption(
+    "📋 Estos KPIs y el ciclo de abajo miden **pedidos** — lo que se pidió, "
+    "no necesariamente lo que ya se cobró. Un pedido se vuelve venta hasta que "
+    "se factura."
+)
+k1, k2, k3, k4 = st.columns(4)
 k1.markdown(_kpi("Venta Total",      f"${venta_total/1e6:,.2f}M",   _GREEN), unsafe_allow_html=True)
 k2.markdown(_kpi("Pedidos",          f"{total_pedidos:,}",           _BLUE),  unsafe_allow_html=True)
-k3.markdown(_kpi("Ticket Promedio",  f"${ticket_promedio:,.0f}",     _GREEN), unsafe_allow_html=True)
-k4.markdown(_kpi("Ticket Mediano",   f"${ticket_mediano:,.0f}",      _GREEN), unsafe_allow_html=True)
-k5.markdown(_kpi("Clientes Únicos",  f"{clientes_unicos:,}",         _BLUE),  unsafe_allow_html=True)
-k6.markdown(_kpi("Vendedores Act.",  f"{vendedores_act:,}",          _BLUE),  unsafe_allow_html=True)
+k3.markdown(_kpi("Clientes Únicos",  f"{clientes_unicos:,}",         _BLUE),  unsafe_allow_html=True)
+k4.markdown(_kpi("Vendedores Act.",  f"{vendedores_act:,}",          _BLUE),  unsafe_allow_html=True)
 
 st.divider()
 
@@ -921,7 +1032,7 @@ st.divider()
 # del switch de arriba (mezclar bases aquí confundiría más de lo que ayuda).
 if _pedidos_cx is None:
     st.info(
-        "Sube el reporte CFDI de Ventas de Contabilidad (en **Gastos de Empresa**) "
+        "Sube el reporte CFDI de Ventas de Contabilidad (en **Carga de Archivos**) "
         "para ver el ciclo completo: qué pedidos ya se facturaron, cuáles siguen "
         "pendientes y cuánto tardan."
     )
@@ -947,10 +1058,12 @@ else:
     # ── A. Embudo del pedido a la factura ───────────────────────────────────────
     st.markdown("### El ciclo: del pedido a la factura")
     st.caption(
-        "Cruce documento a documento por la orden de compra del cliente — el "
-        "SAE y el CFDI capturan la misma OC por separado. Base **siempre sin "
-        "IVA**. No incluye pedidos sin OC (se tratan aparte, más abajo): para "
-        "esos no hay forma de amarrar un documento con otro."
+        "Se contrasta la **fecha de elaboración del pedido** (SAE) contra la "
+        "**fecha de la factura** (reporte CFDI que manda Contabilidad), "
+        "amarrados por la orden de compra del cliente — el SAE y el CFDI "
+        "capturan esa misma OC cada uno por su lado. Base **siempre sin IVA**. "
+        "No incluye pedidos sin OC (se tratan aparte, más abajo): para esos no "
+        "hay forma de amarrar un documento con otro."
     )
     ea, eb, ec, ed = st.columns(4)
     ea.markdown(_kpi("Pedido (sin IVA)", f"${_ped_total/1e6:,.2f}M", _BLUE), unsafe_allow_html=True)
@@ -1027,35 +1140,20 @@ else:
             f"por cliente y mes en el bloque de abajo, no documento a documento."
         )
 
-    # ── C. Cliente: pedido vs facturado ──────────────────────────────────────────
-    st.markdown("#### Cliente: pedido vs facturado")
+    # ── C. Cliente: pedido vs facturado — el detalle vive en el drill-down ────
     st.caption(
-        "Por cliente: lo pedido contra lo facturado. Para los clientes sin OC, "
-        "se usa el total facturado del cliente en el periodo (cliente × mes) en "
-        "vez del cruce documento a documento."
+        "📌 El desglose de pedido vs. facturado por cliente, con su línea de "
+        "tiempo completa, está en el drill-down de cada cliente — entra desde "
+        "la tabla de ciclo de abajo o desde el buscador al final de la página."
     )
-    _por_cliente_ped = _pedidos_periodo.groupby("Cliente_Display")["Subtotal_MXN"].sum()
-    _fact_periodo_cli = (
-        _facturas_vigentes[_facturas_vigentes["_Mes"].isin(meses_sel)]
-        if meses_sel else _facturas_vigentes
-    )
-    _por_cliente_fact = _fact_periodo_cli.groupby("Cliente_Display")["Subtotal_MXN"].sum()
-    _cross_cli = pd.DataFrame({
-        "Cliente": _por_cliente_ped.index,
-        "Pedido_MXN": _por_cliente_ped.values,
-    })
-    _cross_cli["Facturado_MXN"] = _cross_cli["Cliente"].map(_por_cliente_fact).fillna(0.0)
-
-    with st.container(border=True):
-        st.plotly_chart(plot_pedido_vs_facturado(_cross_cli), use_container_width=True)
 
     # ── D. Ciclo pedido → factura ─────────────────────────────────────────────
     if len(_dias_validos) > 0:
         st.markdown("#### Ciclo pedido → factura")
         st.caption(
-            f"Cuánto tarda un pedido en convertirse en factura. Mediana "
-            f"**{_ciclo_mediano:.0f} días** sobre {len(_dias_validos)} pedido(s) "
-            f"facturado(s) con OC."
+            f"Mediana **{_ciclo_mediano:.0f} días** sobre {len(_dias_validos)} "
+            f"pedido(s) facturado(s) con OC — se contrasta la fecha de "
+            f"elaboración del pedido (SAE) contra la fecha de la factura (CFDI)."
         )
         with st.container(border=True):
             _fig_ciclo = px.histogram(
@@ -1073,36 +1171,45 @@ else:
         _fact_ok = _pedidos_periodo[_pedidos_periodo["Estado_Cruce"] == FACTURADO].dropna(
             subset=["Dias_Ciclo"]
         )
-        _cc1, _cc2 = st.columns(2)
-        with _cc1:
-            st.markdown("##### Mediana por vendedor")
-            _por_vend_ciclo = (
-                _fact_ok[_fact_ok["Vendedor"] != "Sin asignar"]
-                .groupby("Vendedor")["Dias_Ciclo"].median()
-                .sort_values().reset_index()
-            )
-            st.dataframe(
-                _por_vend_ciclo, use_container_width=True, hide_index=True,
-                column_config={"Dias_Ciclo": st.column_config.NumberColumn("Días (mediana)", format="%.0f")},
-                height=min(320, 45 + 36 * len(_por_vend_ciclo)),
-            )
-        with _cc2:
-            st.markdown("##### Mediana por cliente")
-            _por_cli_ciclo = (
-                _fact_ok.groupby("Cliente_Display")["Dias_Ciclo"].median()
-                .sort_values().reset_index()
-            )
-            st.dataframe(
-                _por_cli_ciclo, use_container_width=True, hide_index=True,
-                column_config={"Dias_Ciclo": st.column_config.NumberColumn("Días (mediana)", format="%.0f")},
-                height=min(320, 45 + 36 * len(_por_cli_ciclo)),
-            )
+
+        # Mediana por cliente, con spotlight: ya no comparte espacio con la
+        # mediana por vendedor (poco accionable) y el nombre es clickeable —
+        # entra directo al drill-down del cliente, que trae su línea de tiempo
+        # pedido → factura completa.
+        st.markdown("##### Mediana por cliente")
+        st.caption("Haz clic en un cliente para ver su detalle completo de pedido → factura.")
+        _por_cli_ciclo = (
+            _fact_ok.groupby(["Cliente_Display", "Cliente_Nombre"])["Dias_Ciclo"]
+            .median().reset_index().sort_values("Dias_Ciclo")
+        )
+        _ciclo_cli_event = st.dataframe(
+            _por_cli_ciclo[["Cliente_Display", "Dias_Ciclo"]],
+            use_container_width=True, hide_index=True,
+            on_select="rerun", selection_mode="single-row", key="vta_ciclo_cliente_table",
+            column_config={
+                "Cliente_Display": st.column_config.TextColumn("Cliente"),
+                "Dias_Ciclo": st.column_config.NumberColumn("Días (mediana)", format="%.0f"),
+            },
+            height=min(420, 45 + 36 * len(_por_cli_ciclo)),
+        )
+        if _ciclo_cli_event.selection and _ciclo_cli_event.selection.rows:
+            _sel_idx = _ciclo_cli_event.selection.rows[0]
+            st.session_state["drill_cliente"] = _por_cli_ciclo.iloc[_sel_idx]["Cliente_Nombre"]
+            st.session_state.pop("vta_ciclo_cliente_table", None)
+            st.rerun()
 
     # ── E. Después de la factura: notas de crédito y forma de cobro ────────────
     st.markdown("#### Después de la factura")
     st.caption(
-        "Lo que pasa una vez facturado: devoluciones/descuentos y si el cobro "
-        "es de contado o a crédito. Del reporte CFDI, año completo."
+        "Facturar no es el final: todavía puede pasar que el cliente devuelva "
+        "mercancía o pida un descuento (nota de crédito), y el cobro puede "
+        "llegar de inmediato o quedar a crédito. Esta sección cierra esa "
+        "historia con lo que trae el reporte CFDI de Contabilidad."
+    )
+
+    st.markdown("##### Devoluciones y descuentos")
+    st.caption(
+        "Notas de crédito por cliente, del periodo filtrado arriba — sin IVA."
     )
     _notas_periodo = _df_cfdi_raw[
         (_df_cfdi_raw["Tipo_Doc"] == "Nota Cred") & (~_df_cfdi_raw["Cancelado"])
@@ -1110,23 +1217,25 @@ else:
     if meses_sel:
         _notas_periodo = _notas_periodo[_notas_periodo["_Mes"].isin(meses_sel)]
 
-    _nc1, _nc2 = st.columns(2)
-    with _nc1:
-        st.markdown("##### Notas de crédito por cliente")
-        if len(_notas_periodo) == 0:
-            st.success("Sin notas de crédito vigentes en el periodo.")
-        else:
-            _nc_por_cli = (
-                _notas_periodo.groupby("Cliente_Display")["Subtotal_MXN"].agg(["size", "sum"])
-                .sort_values("sum", ascending=False).reset_index()
-                .rename(columns={"Cliente_Display": "Cliente", "size": "N", "sum": "Monto sin IVA"})
-            )
-            _fact_por_cli_periodo = _fact_periodo_cli.groupby("Cliente_Display")["Subtotal_MXN"].sum()
-            _nc_por_cli["% de lo facturado"] = _nc_por_cli.apply(
-                lambda r: r["Monto sin IVA"] / _fact_por_cli_periodo.get(r["Cliente"], 0) * 100
-                if _fact_por_cli_periodo.get(r["Cliente"], 0) else 0.0,
-                axis=1,
-            )
+    if len(_notas_periodo) == 0:
+        st.success("Sin notas de crédito vigentes en el periodo.")
+    else:
+        _fact_periodo_cli = (
+            _facturas_vigentes[_facturas_vigentes["_Mes"].isin(meses_sel)]
+            if meses_sel else _facturas_vigentes
+        )
+        _fact_por_cli_periodo = _fact_periodo_cli.groupby("Cliente_Display")["Subtotal_MXN"].sum()
+        _nc_por_cli = (
+            _notas_periodo.groupby("Cliente_Display")["Subtotal_MXN"].agg(["size", "sum"])
+            .sort_values("sum", ascending=False).reset_index()
+            .rename(columns={"Cliente_Display": "Cliente", "size": "N", "sum": "Monto sin IVA"})
+        )
+        _nc_por_cli["% de lo facturado"] = _nc_por_cli.apply(
+            lambda r: r["Monto sin IVA"] / _fact_por_cli_periodo.get(r["Cliente"], 0) * 100
+            if _fact_por_cli_periodo.get(r["Cliente"], 0) else 0.0,
+            axis=1,
+        )
+        with st.container(border=True):
             st.dataframe(
                 _nc_por_cli, use_container_width=True, hide_index=True,
                 column_config={
@@ -1135,235 +1244,343 @@ else:
                 },
                 height=min(360, 45 + 36 * len(_nc_por_cli)),
             )
-    with _nc2:
-        st.markdown("##### Cómo se cobra")
-        st.plotly_chart(plot_cobranza_mix(_facturas_vigentes), use_container_width=True)
+
+    st.markdown("<div style='margin-top:.5rem'></div>", unsafe_allow_html=True)
+    st.markdown("##### Cómo se cobra, mes a mes")
+    st.caption(
+        "PPD (a crédito) vs. PUE (de contado), por mes — año completo del "
+        "reporte CFDI, no solo el periodo filtrado arriba. Un mes sin ninguna "
+        "factura sale «—», no cero."
+    )
+    if len(_facturas_vigentes) == 0:
+        st.info("Sin facturas vigentes en el reporte CFDI para calcular la mezcla de cobro.")
+    else:
+        _meses_full = pd.period_range(
+            _facturas_vigentes["_Mes"].min(), _facturas_vigentes["_Mes"].max(), freq="M"
+        )
+        _mix = (
+            _facturas_vigentes.groupby(["_Mes", "Metodo_Pago"]).size()
+            .unstack(fill_value=0)
+            .reindex(_meses_full)
+        )
+        for _col in ("PPD", "PUE"):
+            if _col not in _mix.columns:
+                _mix[_col] = pd.NA
+        _mix = _mix[["PPD", "PUE"]]
+        # Mes genuinamente ausente del CFDI -> "—", nunca 0 — un hueco en la
+        # cobertura del reporte no es lo mismo que "cero facturas ese mes".
+        _fmt_conteo = lambda v: "—" if pd.isna(v) else str(int(v))
+        _mix["PPD"] = _mix["PPD"].apply(_fmt_conteo)
+        _mix["PUE"] = _mix["PUE"].apply(_fmt_conteo)
+        _mix["Mes"] = [label_mes(m) for m in _mix.index]
+        _mix = _mix[["Mes", "PPD", "PUE"]].reset_index(drop=True)
+        with st.container(border=True):
+            st.dataframe(
+                _mix, use_container_width=True, hide_index=True,
+                column_config={
+                    "PPD": st.column_config.TextColumn("PPD (a crédito)"),
+                    "PUE": st.column_config.TextColumn("PUE (de contado)"),
+                },
+                height=min(360, 45 + 36 * len(_mix)),
+            )
 
 st.divider()
 
-# ── Gráficas ──────────────────────────────────────────────────────────────────
-with st.container(border=True):
-    st.plotly_chart(
-        _marcar_base(plot_donut_clientes_ventas(df, venta_total, n_clientes_80pct), vta_base),
-        use_container_width=True,
-    )
-
-fig_resto = _marcar_base(plot_donut_resto_clientes(df, venta_total), vta_base)
-if fig_resto is not None:
-    with st.container(border=True):
-        st.plotly_chart(fig_resto, use_container_width=True)
-
-with st.container(border=True):
-    sem_v_event = st.plotly_chart(
-        _marcar_base(plot_curva_semanal_ventas(df), vta_base),
-        use_container_width=True,
-        on_select="rerun",
-        selection_mode="points",
-        key="curva_semanal_ventas_chart",
-    )
-    st.caption("Haz **un solo clic** (no doble) sobre un punto de la curva para ver el desglose de esa semana.")
-
-    # Reliable fallback: pick the week from a selector.
-    _semanas_disp_v = (
-        df.set_index("Fecha").resample("W-MON")["Importe_MXN"].sum()
-    )
-    _semanas_disp_v = _semanas_disp_v[_semanas_disp_v > 0].index
-    if len(_semanas_disp_v) > 0:
-        _opts_v = {
-            f"{(w - pd.Timedelta(days=6)).strftime('%d %b')} – {w.strftime('%d %b %Y')}": w
-            for w in _semanas_disp_v
-        }
-        _pick_v = st.selectbox(
-            "…o selecciona la semana:", ["—"] + list(_opts_v.keys()),
-            key="vta_semana_pick",
-        )
-        if _pick_v != "—":
-            st.session_state["drill_semana_v"] = str(_opts_v[_pick_v])
-            st.session_state.pop("curva_semanal_ventas_chart", None)
-            st.rerun()
-
-    if sem_v_event and sem_v_event.selection and sem_v_event.selection.points:
-        pt        = sem_v_event.selection.points[0]
-        clicked_x = pt.get("x", "") if isinstance(pt, dict) else getattr(pt, "x", "")
-        _wk = parse_semana_x(clicked_x) if clicked_x else None
-        if _wk is not None:
-            # Ignore clicks on empty valley weeks (markers sit at y=0)
-            _ws   = _wk - pd.Timedelta(days=6)
-            _dias = df["Fecha"].dt.normalize()
-            if ((_dias >= _ws) & (_dias <= _wk)).any():
-                st.session_state["drill_semana_v"] = str(_wk)
-                st.session_state.pop("curva_semanal_ventas_chart", None)
-                st.toast("Cargando detalle de la semana…", icon="⏳")
-                st.rerun()
-            else:
-                st.toast("Esa semana no tiene pedidos.", icon="⚠️")
-
-with st.container(border=True):
-    st.plotly_chart(
-        _marcar_base(plot_pareto_clientes_ventas(df, venta_total), vta_base),
-        use_container_width=True,
-    )
-
-# Resto de clientes
-ranking = df.groupby("Cliente_Nombre")["Importe_MXN"].sum().sort_values(ascending=False)
-n2d = (df.drop_duplicates("Cliente_Nombre")
-         .set_index("Cliente_Nombre")["Cliente_Display"].to_dict())
-resto_clientes = ranking.iloc[10:]
-if len(resto_clientes) > 0:
-    with st.container(border=True):
-        st.markdown(f"##### Resto de Clientes (posiciones 11 – {len(ranking)})")
-        st.caption(
-            f"{len(resto_clientes)} clientes  ·  "
-            f"${resto_clientes.sum()/1e6:,.2f}M MXN  ·  "
-            f"{resto_clientes.sum()/venta_total*100:.1f}% del revenue"
-        )
-        resto_df = resto_clientes.reset_index()
-        resto_df.columns = ["Cliente_Nombre", "Importe_MXN"]
-        resto_df["Cliente_Display"] = resto_df["Cliente_Nombre"].apply(lambda c: n2d.get(c, c))
-        resto_df["Pct"] = resto_df["Importe_MXN"] / venta_total * 100
-        resto_df.index = range(11, 11 + len(resto_df))
-        st.dataframe(
-            resto_df[["Cliente_Display", "Importe_MXN", "Pct"]],
-            use_container_width=True, hide_index=False,
-            column_config={
-                "Cliente_Display": st.column_config.TextColumn("Cliente"),
-                "Importe_MXN":     st.column_config.NumberColumn("Ventas (MXN)", format="$%,.2f"),
-                "Pct":             st.column_config.NumberColumn("% Revenue",    format="%.2f%%"),
-            },
-            height=min(400, 40 + 35 * len(resto_df)),
-        )
-
-with st.container(border=True):
-    st.plotly_chart(
-        _marcar_base(plot_ventas_por_vendedor(df, venta_total), vta_base),
-        use_container_width=True,
-    )
-
 # ══════════════════════════════════════════════════════════════════════════════
-#  PRODUCTIVIDAD DE VENDEDORES
+#  DE AQUÍ EN ADELANTE: VENTAS CONFIRMADAS (Reporte de Ventas 2026)
 # ══════════════════════════════════════════════════════════════════════════════
-st.divider()
-st.markdown("### Productividad de Vendedores")
-
-_vend_df = (
-    df[df["Vendedor"] != "Sin asignar"]
-    .groupby("Vendedor")
-    .agg(
-        Ventas_Brutas=("Importe_MXN",  "sum"),
-        Comisiones   =("Comision_MXN", "sum"),
-        Pedidos      =("Importe_MXN",  "count"),
-    ).reset_index()
+# Ya no medimos pedidos: un pedido no es una venta hasta que se factura. Todo
+# lo de aquí para abajo viene de `ventas_confirmadas()` (core/cruce_ventas.py)
+# — el CFDI con la misma forma que ya usan estas gráficas para pedidos, así
+# que ninguna se reescribió. Sin CFDI cargado NO se cae de vuelta a pedidos:
+# se avisa y no se muestra nada de esta sección, para no mezclar fuentes sin
+# decirlo.
+st.info(
+    "📌 De aquí en adelante, todo lo que ves son **Ventas Confirmadas** — el "
+    "Reporte de Ventas 2026 que manda Contabilidad — no pedidos. Un pedido no "
+    "es una venta hasta que se factura."
 )
 
-if len(_vend_df) > 0:
-    _vend_df["Venta_Neta"]     = _vend_df["Ventas_Brutas"] - _vend_df["Comisiones"]
-    _vend_df["Ratio_Comision"] = _vend_df.apply(
-        lambda r: r["Comisiones"] / r["Ventas_Brutas"] * 100
-                  if r["Ventas_Brutas"] > 0 else 0,
-        axis=1,
+if _ventas_cx is None:
+    st.warning(
+        "Sube el reporte CFDI de Ventas (en **Carga de Archivos**) para ver "
+        "distribución de clientes, curva semanal, Pareto, vendedores, ticket "
+        "por cliente y productividad medidos en ventas confirmadas."
     )
-
-    # ── El ciclo por vendedor (condicional al reporte CFDI) ─────────────────
-    _cols_ciclo = ["Vendedor", "Ventas_Brutas", "Comisiones",
-                   "Venta_Neta", "Ratio_Comision", "Pedidos"]
-    _cfg_ciclo = {}
-    if _pedidos_cx is not None:
-        _ped_periodo_v = _pedidos_cx[_pedidos_cx["_Mes"].isin(meses_sel)] if meses_sel else _pedidos_cx
-        _con_oc_v = _ped_periodo_v[_ped_periodo_v["Estado_Cruce"] != SIN_OC]
-        _por_vend = _con_oc_v.groupby("Vendedor").agg(
-            _ped_oc=("Subtotal_MXN", "sum"), _fact_oc=("Facturado_MXN", "sum"),
-        )
-        _pct_vend = (_por_vend["_fact_oc"] / _por_vend["_ped_oc"] * 100).where(_por_vend["_ped_oc"] > 0)
-        _ciclo_vend_s = (
-            _ped_periodo_v[_ped_periodo_v["Estado_Cruce"] == FACTURADO]
-            .groupby("Vendedor")["Dias_Ciclo"].median()
-        )
-        _remitido_por_vend, _ = descomponer_sin_factura(_ped_periodo_v)
-        _remitido_vend_s = _remitido_por_vend.groupby("Vendedor")["Subtotal_MXN"].sum()
-
-        _vend_df["% Pedido→Factura"] = _vend_df["Vendedor"].map(_pct_vend)
-        _vend_df["Ciclo (días)"]     = _vend_df["Vendedor"].map(_ciclo_vend_s)
-        _vend_df["Remitido s/factura"] = _vend_df["Vendedor"].map(_remitido_vend_s).fillna(0.0)
-
-        _cols_ciclo += ["% Pedido→Factura", "Ciclo (días)", "Remitido s/factura"]
-        _cfg_ciclo = {
-            "% Pedido→Factura":   st.column_config.NumberColumn(format="%.0f%%"),
-            "Ciclo (días)":       st.column_config.NumberColumn(format="%.0f"),
-            "Remitido s/factura": st.column_config.NumberColumn(format="$%,.0f"),
-        }
-
-    _vend_df = _vend_df.sort_values("Ventas_Brutas", ascending=False).reset_index(drop=True)
-    _vend_df.index = _vend_df.index + 1
-
-    _col_vl, _col_vr = st.columns([2, 3])
-
-    with _col_vl:
-        with st.container(border=True):
-            st.markdown("##### Ranking de vendedores")
-            st.caption(
-                "Venta Neta = Ventas Brutas − Comisiones"
-                + ("  ·  el ciclo es sin IVA, del cruce contra el CFDI" if _pedidos_cx is not None else "")
-            )
-            st.dataframe(
-                _vend_df[_cols_ciclo],
-                use_container_width=True,
-                hide_index=False,
-                column_config={
-                    "Vendedor":       st.column_config.TextColumn("Vendedor"),
-                    "Ventas_Brutas":  st.column_config.NumberColumn("Ventas",      format="$%,.0f"),
-                    "Comisiones":     st.column_config.NumberColumn("Comisiones",  format="$%,.0f"),
-                    "Venta_Neta":     st.column_config.NumberColumn("Venta Neta",  format="$%,.0f"),
-                    "Ratio_Comision": st.column_config.NumberColumn("% Comisión",  format="%.1f%%"),
-                    "Pedidos":        st.column_config.NumberColumn("Pedidos",      format="%d"),
-                    **_cfg_ciclo,
-                },
-                height=min(500, 52 + 36 * len(_vend_df)),
-            )
-
-    with _col_vr:
-        with st.container(border=True):
-            _vend_sort = _vend_df.sort_values("Ventas_Brutas", ascending=True)
-            _fig_vp = go.Figure()
-            _fig_vp.add_trace(go.Bar(
-                x=_vend_sort["Ventas_Brutas"], y=_vend_sort["Vendedor"],
-                name="Ventas Brutas", orientation="h",
-                marker_color=_GREEN,
-                hovertemplate="<b>%{y}</b><br>Ventas: $%{x:,.0f}<extra></extra>",
-            ))
-            _fig_vp.add_trace(go.Bar(
-                x=_vend_sort["Comisiones"], y=_vend_sort["Vendedor"],
-                name="Comisiones", orientation="h",
-                marker_color=_RED, opacity=0.85,
-                customdata=_vend_sort["Ratio_Comision"].values,
-                hovertemplate=(
-                    "<b>%{y}</b><br>"
-                    "Comisión: $%{x:,.0f} (%{customdata:.1f}%)<extra></extra>"
-                ),
-            ))
-            _fig_vp.update_layout(
-                title="<b>Ventas Brutas vs Comisiones</b>",
-                barmode="overlay", template="plotly_white",
-                height=max(280, 60 + 50 * len(_vend_df)),
-                legend=dict(orientation="h", y=1.08, x=0.5, xanchor="center"),
-                xaxis=dict(tickformat="$,.0f", title=""),
-                yaxis_title="",
-                margin=dict(t=70, b=40, l=140, r=40),
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            )
-            st.plotly_chart(_marcar_base(_fig_vp, vta_base), use_container_width=True)
 else:
-    st.info("No hay pedidos con vendedor asignado en el periodo seleccionado.")
+    dfc = _ventas_cx[_ventas_cx["_Mes"].isin(meses_sel)] if meses_sel else _ventas_cx
+    if len(dfc) == 0:
+        st.warning("No hay ventas confirmadas para los meses seleccionados.")
+    else:
+        venta_total_c = dfc["Importe_MXN"].sum()
+        ranking_c = dfc.groupby("Cliente_Nombre")["Importe_MXN"].sum().sort_values(ascending=False)
+        acum_pct_c = ranking_c.cumsum() / venta_total_c * 100
+        n_clientes_80pct_c = int((acum_pct_c <= 80).sum()) + 1 if len(acum_pct_c) > 0 else 0
 
-with st.container(border=True):
-    st.plotly_chart(
-        _marcar_base(plot_heatmap_cliente_mes(df), vta_base),
-        use_container_width=True,
-    )
+        with st.container(border=True):
+            st.plotly_chart(
+                _marcar_base(plot_donut_clientes_ventas(dfc, venta_total_c, n_clientes_80pct_c), vta_base),
+                use_container_width=True,
+            )
 
-# Top 10 pedidos
+        fig_resto = _marcar_base(plot_donut_resto_clientes(dfc, venta_total_c), vta_base)
+        if fig_resto is not None:
+            with st.container(border=True):
+                st.plotly_chart(fig_resto, use_container_width=True)
+
+        with st.container(border=True):
+            sem_v_event = st.plotly_chart(
+                _marcar_base(plot_curva_semanal_ventas(dfc), vta_base),
+                use_container_width=True,
+                on_select="rerun",
+                selection_mode="points",
+                key="curva_semanal_ventas_chart",
+            )
+            st.caption("Haz **un solo clic** (no doble) sobre un punto de la curva para ver el desglose de esa semana.")
+
+            # Reliable fallback: pick the week from a selector.
+            _semanas_disp_v = (
+                dfc.set_index("Fecha").resample("W-MON")["Importe_MXN"].sum()
+            )
+            _semanas_disp_v = _semanas_disp_v[_semanas_disp_v > 0].index
+            if len(_semanas_disp_v) > 0:
+                _opts_v = {
+                    f"{(w - pd.Timedelta(days=6)).strftime('%d %b')} – {w.strftime('%d %b %Y')}": w
+                    for w in _semanas_disp_v
+                }
+                _pick_v = st.selectbox(
+                    "…o selecciona la semana:", ["—"] + list(_opts_v.keys()),
+                    key="vta_semana_pick",
+                )
+                if _pick_v != "—":
+                    st.session_state["drill_semana_v"] = str(_opts_v[_pick_v])
+                    st.session_state.pop("curva_semanal_ventas_chart", None)
+                    st.rerun()
+
+            if sem_v_event and sem_v_event.selection and sem_v_event.selection.points:
+                pt        = sem_v_event.selection.points[0]
+                clicked_x = pt.get("x", "") if isinstance(pt, dict) else getattr(pt, "x", "")
+                _wk = parse_semana_x(clicked_x) if clicked_x else None
+                if _wk is not None:
+                    # Ignore clicks on empty valley weeks (markers sit at y=0)
+                    _ws   = _wk - pd.Timedelta(days=6)
+                    _dias = dfc["Fecha"].dt.normalize()
+                    if ((_dias >= _ws) & (_dias <= _wk)).any():
+                        st.session_state["drill_semana_v"] = str(_wk)
+                        st.session_state.pop("curva_semanal_ventas_chart", None)
+                        st.toast("Cargando detalle de la semana…", icon="⏳")
+                        st.rerun()
+                    else:
+                        st.toast("Esa semana no tiene facturas.", icon="⚠️")
+
+        with st.container(border=True):
+            st.plotly_chart(
+                _marcar_base(plot_pareto_clientes_ventas(dfc, venta_total_c), vta_base),
+                use_container_width=True,
+            )
+
+        # Resto de clientes
+        n2d_c = (dfc.drop_duplicates("Cliente_Nombre")
+                   .set_index("Cliente_Nombre")["Cliente_Display"].to_dict())
+        resto_clientes_c = ranking_c.iloc[10:]
+        if len(resto_clientes_c) > 0:
+            with st.container(border=True):
+                st.markdown(f"##### Resto de Clientes (posiciones 11 – {len(ranking_c)})")
+                st.caption(
+                    f"{len(resto_clientes_c)} clientes  ·  "
+                    f"${resto_clientes_c.sum()/1e6:,.2f}M MXN  ·  "
+                    f"{resto_clientes_c.sum()/venta_total_c*100:.1f}% del revenue"
+                )
+                resto_df_c = resto_clientes_c.reset_index()
+                resto_df_c.columns = ["Cliente_Nombre", "Importe_MXN"]
+                resto_df_c["Cliente_Display"] = resto_df_c["Cliente_Nombre"].apply(lambda c: n2d_c.get(c, c))
+                resto_df_c["Pct"] = resto_df_c["Importe_MXN"] / venta_total_c * 100
+                resto_df_c.index = range(11, 11 + len(resto_df_c))
+                st.dataframe(
+                    resto_df_c[["Cliente_Display", "Importe_MXN", "Pct"]],
+                    use_container_width=True, hide_index=False,
+                    column_config={
+                        "Cliente_Display": st.column_config.TextColumn("Cliente"),
+                        "Importe_MXN":     st.column_config.NumberColumn("Ventas (MXN)", format="$%,.2f"),
+                        "Pct":             st.column_config.NumberColumn("% Revenue",    format="%.2f%%"),
+                    },
+                    height=min(400, 40 + 35 * len(resto_df_c)),
+                )
+
+        # ── Ticket por cliente (sobre facturas confirmadas) ───────────────────
+        st.markdown("##### Ticket por cliente")
+        st.caption(
+            "Promedio y mediana del monto por FACTURA de cada cliente — sobre "
+            "ventas confirmadas. En el total de arriba no sirve de mucho "
+            "(mezcla clientes muy distintos); por cliente sí dice algo."
+        )
+        _ticket_cli = (
+            dfc.groupby(["Cliente_Nombre", "Cliente_Display"])["Importe_MXN"]
+            .agg(Facturas="count", Promedio="mean", Mediana="median")
+            .reset_index().sort_values("Promedio", ascending=False)
+        )
+        with st.container(border=True):
+            st.dataframe(
+                _ticket_cli[["Cliente_Display", "Facturas", "Promedio", "Mediana"]],
+                use_container_width=True, hide_index=True,
+                column_config={
+                    "Cliente_Display": st.column_config.TextColumn("Cliente"),
+                    "Facturas":        st.column_config.NumberColumn(format="%d"),
+                    "Promedio":        st.column_config.NumberColumn(format="$%,.0f"),
+                    "Mediana":         st.column_config.NumberColumn(format="$%,.0f"),
+                },
+                height=min(420, 45 + 36 * min(len(_ticket_cli), 15)),
+            )
+
+        # Comisiones reales por vendedor: siguen siendo del SAE de pedidos —
+        # el CFDI no las trae. Se etiquetan como tal en vez de mostrar "$0".
+        _comisiones_vend = (
+            df_full[df_full["Vendedor"] != "Sin asignar"]
+            .groupby("Vendedor")["Comision_MXN"].sum().to_dict()
+        )
+
+        with st.container(border=True):
+            st.plotly_chart(
+                _marcar_base(
+                    plot_ventas_por_vendedor(
+                        dfc, venta_total_c, unidad="facturas",
+                        comisiones_por_vendedor=_comisiones_vend,
+                    ),
+                    vta_base,
+                ),
+                use_container_width=True,
+            )
+
+        # ══════════════════════════════════════════════════════════════════════
+        #  PRODUCTIVIDAD DE VENDEDORES
+        # ══════════════════════════════════════════════════════════════════════
+        st.divider()
+        st.markdown("### Productividad de Vendedores")
+        st.caption(
+            "Ventas y facturas: confirmadas (Reporte de Ventas 2026). "
+            "**Comisiones**: siguen siendo del SAE de pedidos — el CFDI no las trae."
+        )
+
+        _vend_df = (
+            dfc[dfc["Vendedor"] != "Sin asignar"]
+            .groupby("Vendedor")
+            .agg(
+                Ventas_Brutas=("Importe_MXN", "sum"),
+                Facturas     =("Importe_MXN", "count"),
+            ).reset_index()
+        )
+        _vend_df["Comisiones"] = _vend_df["Vendedor"].map(_comisiones_vend).fillna(0.0)
+
+        if len(_vend_df) > 0:
+            _vend_df["Venta_Neta"]     = _vend_df["Ventas_Brutas"] - _vend_df["Comisiones"]
+            _vend_df["Ratio_Comision"] = _vend_df.apply(
+                lambda r: r["Comisiones"] / r["Ventas_Brutas"] * 100
+                          if r["Ventas_Brutas"] > 0 else 0,
+                axis=1,
+            )
+
+            # ── El ciclo por vendedor (condicional al reporte CFDI) ─────────
+            _cols_ciclo = ["Vendedor", "Ventas_Brutas", "Comisiones",
+                           "Venta_Neta", "Ratio_Comision", "Facturas"]
+            _cfg_ciclo = {}
+            if _pedidos_cx is not None:
+                _ped_periodo_v = _pedidos_cx[_pedidos_cx["_Mes"].isin(meses_sel)] if meses_sel else _pedidos_cx
+                _con_oc_v = _ped_periodo_v[_ped_periodo_v["Estado_Cruce"] != SIN_OC]
+                _por_vend = _con_oc_v.groupby("Vendedor").agg(
+                    _ped_oc=("Subtotal_MXN", "sum"), _fact_oc=("Facturado_MXN", "sum"),
+                )
+                _pct_vend = (_por_vend["_fact_oc"] / _por_vend["_ped_oc"] * 100).where(_por_vend["_ped_oc"] > 0)
+                _ciclo_vend_s = (
+                    _ped_periodo_v[_ped_periodo_v["Estado_Cruce"] == FACTURADO]
+                    .groupby("Vendedor")["Dias_Ciclo"].median()
+                )
+                _remitido_por_vend, _ = descomponer_sin_factura(_ped_periodo_v)
+                _remitido_vend_s = _remitido_por_vend.groupby("Vendedor")["Subtotal_MXN"].sum()
+
+                _vend_df["% Pedido→Factura"] = _vend_df["Vendedor"].map(_pct_vend)
+                _vend_df["Ciclo (días)"]     = _vend_df["Vendedor"].map(_ciclo_vend_s)
+                _vend_df["Remitido s/factura"] = _vend_df["Vendedor"].map(_remitido_vend_s).fillna(0.0)
+
+                _cols_ciclo += ["% Pedido→Factura", "Ciclo (días)", "Remitido s/factura"]
+                _cfg_ciclo = {
+                    "% Pedido→Factura":   st.column_config.NumberColumn(format="%.0f%%"),
+                    "Ciclo (días)":       st.column_config.NumberColumn(format="%.0f"),
+                    "Remitido s/factura": st.column_config.NumberColumn(format="$%,.0f"),
+                }
+
+            _vend_df = _vend_df.sort_values("Ventas_Brutas", ascending=False).reset_index(drop=True)
+            _vend_df.index = _vend_df.index + 1
+
+            _col_vl, _col_vr = st.columns([2, 3])
+
+            with _col_vl:
+                with st.container(border=True):
+                    st.markdown("##### Ranking de vendedores")
+                    st.caption(
+                        "Venta Neta = Ventas Brutas − Comisiones (SAE)"
+                        + ("  ·  el ciclo es sin IVA, del cruce contra el CFDI" if _pedidos_cx is not None else "")
+                    )
+                    st.dataframe(
+                        _vend_df[_cols_ciclo],
+                        use_container_width=True,
+                        hide_index=False,
+                        column_config={
+                            "Vendedor":       st.column_config.TextColumn("Vendedor"),
+                            "Ventas_Brutas":  st.column_config.NumberColumn("Ventas",      format="$%,.0f"),
+                            "Comisiones":     st.column_config.NumberColumn("Comisiones (SAE)", format="$%,.0f"),
+                            "Venta_Neta":     st.column_config.NumberColumn("Venta Neta",  format="$%,.0f"),
+                            "Ratio_Comision": st.column_config.NumberColumn("% Comisión",  format="%.1f%%"),
+                            "Facturas":       st.column_config.NumberColumn("Facturas",    format="%d"),
+                            **_cfg_ciclo,
+                        },
+                        height=min(500, 52 + 36 * len(_vend_df)),
+                    )
+
+            with _col_vr:
+                with st.container(border=True):
+                    _vend_sort = _vend_df.sort_values("Ventas_Brutas", ascending=True)
+                    _fig_vp = go.Figure()
+                    _fig_vp.add_trace(go.Bar(
+                        x=_vend_sort["Ventas_Brutas"], y=_vend_sort["Vendedor"],
+                        name="Ventas Brutas", orientation="h",
+                        marker_color=_GREEN,
+                        hovertemplate="<b>%{y}</b><br>Ventas: $%{x:,.0f}<extra></extra>",
+                    ))
+                    _fig_vp.add_trace(go.Bar(
+                        x=_vend_sort["Comisiones"], y=_vend_sort["Vendedor"],
+                        name="Comisiones (SAE)", orientation="h",
+                        marker_color=_RED, opacity=0.85,
+                        customdata=_vend_sort["Ratio_Comision"].values,
+                        hovertemplate=(
+                            "<b>%{y}</b><br>"
+                            "Comisión: $%{x:,.0f} (%{customdata:.1f}%)<extra></extra>"
+                        ),
+                    ))
+                    _fig_vp.update_layout(
+                        title="<b>Ventas Brutas vs Comisiones (SAE)</b>",
+                        barmode="overlay", template="plotly_white",
+                        height=max(280, 60 + 50 * len(_vend_df)),
+                        legend=dict(orientation="h", y=1.08, x=0.5, xanchor="center"),
+                        xaxis=dict(tickformat="$,.0f", title=""),
+                        yaxis_title="",
+                        margin=dict(t=70, b=40, l=140, r=40),
+                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    )
+                    st.plotly_chart(_marcar_base(_fig_vp, vta_base), use_container_width=True)
+        else:
+            st.info("No hay ventas confirmadas con vendedor asignado en el periodo seleccionado.")
+
+        with st.container(border=True):
+            st.plotly_chart(
+                _marcar_base(plot_heatmap_cliente_mes(dfc), vta_base),
+                use_container_width=True,
+            )
+
+# Top 10 pedidos — se queda en base PEDIDOS a propósito: es detalle operativo
+# (Clave, Estatus) que no tiene equivalente 1:1 en el CFDI.
 with st.container(border=True):
     st.markdown("##### Top 10 Pedidos Individuales por Monto")
-    st.caption("Identifica contratos grandes y entregas excepcionales")
+    st.caption("Identifica contratos grandes y entregas excepcionales. Base: pedidos (SAE).")
 
     top_cols = ["Clave", "Fecha", "Cliente_Nombre", "Vendedor", "Importe_MXN", "Estatus"]
     top = df.nlargest(10, "Importe_MXN")[top_cols].copy().reset_index(drop=True)
